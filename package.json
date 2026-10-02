@@ -1,10 +1,11 @@
 {
-  "name": "klevapools",
+  "name": "naja",
   "version": "1.0.0",
-  "description": "",
+  "description": "WhatsApp-based marketplace connecting Tanzanian households with trusted domestic workers: house helps, cooks, gardeners, drivers, cleaners, security guards, and fundis.",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/index.ts",
+    "dev:ngrok": "/tmp/ngrok-darwin-arm64/ngrok http 3000",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"

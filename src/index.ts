@@ -1,12 +1,19 @@
 import Fastify from "fastify";
+import zernioWebhookRoutes from "./routes/webhooks/zernio.js";
 
 const fastify = Fastify({
   logger: true,
 });
 
-fastify.get("/", async (request, reply) => {
-  return { hello: "world" };
+fastify.get("/", async () => {
+  return {
+    service: "Naja API",
+    status: "ok",
+    description: "Connecting Tanzanian households with trusted domestic workers.",
+  };
 });
+
+fastify.register(zernioWebhookRoutes, { prefix: "/webhooks" });
 
 const start = async () => {
   try {
