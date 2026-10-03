@@ -1,10 +1,11 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
-  isValidZernioSignature,
   parseZernioWebhookBody,
-  processZernioEvent,
   type ParsedZernioWebhookBody,
 } from "../../services/zernio-events.js";
+import { enqueueWhatsappIncomingMessage } from "../../queues/zernio-events.js";
+import { checkZernioWebhook } from "../../hooks/zernio-webhook-checks.js";
+import { toWhatsappMessageJob } from "../../services/zernio-event-mapper.js";
 
 const zernioWebhookRoutes: FastifyPluginAsync = async (app) => {
   app.removeContentTypeParser("application/json");
@@ -25,37 +26,35 @@ const zernioWebhookRoutes: FastifyPluginAsync = async (app) => {
 
   app.post<{ Body: ParsedZernioWebhookBody }>(
     "/zernio",
+    {
+      preHandler: async (request, reply) =>
+        checkZernioWebhook(request, reply),
+    },
     async (request, reply) => {
-      const secret = process.env.ZERNIO_WEBHOOK_SECRET;
-      if (!secret) {
-        request.log.error("ZERNIO_WEBHOOK_SECRET is not configured");
-        return reply.code(500).send({ error: "Webhook is not configured" });
-      }
-
-      const signature = request.headers["x-zernio-signature"];
-      if (
-        !isValidZernioSignature(
-          request.body.rawBody,
-          typeof signature === "string" ? signature : undefined,
-          secret,
-        )
-      ) {
-        return reply.code(401).send({ error: "Invalid webhook signature" });
-      }
-
       const { payload } = request.body;
+      const job = toWhatsappMessageJob(payload);
+      if (!job) {
+        request.log.warn(
+          { eventId: payload.id },
+          "WhatsApp message is missing sender identity, account, or conversation ID",
+        );
+        return reply.code(422).send({ error: "Incomplete WhatsApp message event" });
+      }
 
-      setImmediate(() => {
-        try {
-          processZernioEvent(payload, request.log);
-        } catch (error) {
-          request.log.error(
-            { err: error, eventId: payload.id },
-            "Zernio event processing failed",
-          );
-        }
-      });
-      return reply.code(200).send({ received: true });
+      try {
+        await enqueueWhatsappIncomingMessage(
+          app.whatsappIncomingMessagesQueue,
+          job,
+        );
+      } catch (error) {
+        request.log.error(
+          { err: error, eventId: payload.id },
+          "Failed to enqueue WhatsApp message",
+        );
+        return reply.code(503).send({ error: "Message queue unavailable" });
+      }
+
+      return reply.code(200).send({ received: true, queued: true });
     },
   );
 };

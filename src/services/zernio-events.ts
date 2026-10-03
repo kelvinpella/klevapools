@@ -1,6 +1,4 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { FastifyBaseLogger } from "fastify";
-
 export type ZernioWebhookPayload = {
   id?: string;
   event?: string;
@@ -10,7 +8,22 @@ export type ZernioWebhookPayload = {
     platform?: string;
   };
   conversation?: { id?: string };
-  message?: Record<string, unknown>;
+  message?: {
+    id?: string;
+    text?: string;
+    sender?: {
+      id?: string;
+      phoneNumber?: string | null;
+      businessScopedUserId?: string;
+    };
+    [key: string]: unknown;
+  };
+  metadata?: {
+    interactiveId?: string;
+    interactiveType?: string;
+    standby?: boolean;
+    [key: string]: unknown;
+  } | null;
 };
 
 export type ParsedZernioWebhookBody = {
@@ -37,28 +50,4 @@ export function isValidZernioSignature(
   const expected = createHmac("sha256", secret).update(rawBody).digest();
   const received = Buffer.from(signature, "hex");
   return received.length === expected.length && timingSafeEqual(received, expected);
-}
-
-export function processZernioEvent(
-  payload: ZernioWebhookPayload,
-  logger: FastifyBaseLogger,
-): void {
-  if (
-    payload.event !== "message.received" ||
-    payload.account?.platform !== "whatsapp"
-  ) {
-    return;
-  }
-
-  logger.info(
-    {
-      eventId: payload.id,
-      accountId: payload.account.accountId,
-      profileId: payload.account.profileId,
-      conversationId: payload.conversation?.id,
-      message: payload.message,
-    },
-    "Received WhatsApp message",
-  );
-
 }
