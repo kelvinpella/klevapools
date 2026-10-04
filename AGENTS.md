@@ -30,7 +30,13 @@ Whenever you add or update dependencies:
 - Do not commit, amend, push, or create PRs unless the user explicitly asks.
 - Leave changes uncommitted in the working tree for the user to review.
 
-## 6. Useful command recap
+## 6. PRs must be descriptive
+
+- Every PR title names the change and its scope.
+- Every PR description includes: what changed, why, key behavior/implementation notes, how it was verified (typecheck/tests), and follow-ups if any.
+- Link related issues or specs when they exist.
+
+## 7. Useful command recap
 
 | Command | Purpose |
 | --- | --- |
