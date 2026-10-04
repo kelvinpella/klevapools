@@ -19,7 +19,24 @@ Whenever you add or update dependencies:
 - Consult the relevant Fastify, TypeScript, and other project skills when working on related tasks.
 - Use TypeScript for all new utilities.
 
-## 4. Useful command recap
+## 4. Prefer official SDKs over raw HTTP
+
+- When an official SDK is available in the project (e.g. `@zernio/node` for Zernio, `@supabase/supabase-js` for Supabase), always use it instead of hand-rolled `fetch` calls.
+- If the SDK is not yet installed, add it with the appropriate package manager and update the lockfile (see section 2).
+- Only fall back to raw HTTP when the SDK lacks the needed endpoint or option — and leave a comment explaining why.
+
+## 5. Never commit unless told
+
+- Do not commit, amend, push, or create PRs unless the user explicitly asks.
+- Leave changes uncommitted in the working tree for the user to review.
+
+## 6. PRs must be descriptive
+
+- Every PR title names the change and its scope.
+- Every PR description includes: what changed, why, key behavior/implementation notes, how it was verified (typecheck/tests), and follow-ups if any.
+- Link related issues or specs when they exist.
+
+## 7. Useful command recap
 
 | Command | Purpose |
 | --- | --- |
