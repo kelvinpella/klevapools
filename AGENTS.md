@@ -25,7 +25,12 @@ Whenever you add or update dependencies:
 - If the SDK is not yet installed, add it with the appropriate package manager and update the lockfile (see section 2).
 - Only fall back to raw HTTP when the SDK lacks the needed endpoint or option — and leave a comment explaining why.
 
-## 5. Useful command recap
+## 5. Never commit unless told
+
+- Do not commit, amend, push, or create PRs unless the user explicitly asks.
+- Leave changes uncommitted in the working tree for the user to review.
+
+## 6. Useful command recap
 
 | Command | Purpose |
 | --- | --- |

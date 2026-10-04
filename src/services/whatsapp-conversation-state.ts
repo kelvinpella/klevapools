@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import type { Redis } from "ioredis";
+import type { StageId } from "./whatsapp-stages.js";
 
 const STATE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-export type ConversationStage = "get_started" | "get_started_complete";
+export type ConversationStage = StageId;
 
 export type ConversationResponse = {
-  stage: "get_started";
+  stage: ConversationStage;
   response: string;
   eventId: string;
   receivedAt: string;
@@ -31,6 +32,17 @@ export function getStartedIdempotencyKey(eventId: string): string {
   return `naja-get-started-${eventHash}`;
 }
 
+export function stageIdempotencyKey(
+  stage: ConversationStage,
+  eventId: string,
+): string {
+  if (stage === "get_started") {
+    return getStartedIdempotencyKey(eventId);
+  }
+  const eventHash = createHash("sha256").update(eventId).digest("hex");
+  return `naja-${stage}-${eventHash}`;
+}
+
 export async function loadConversationState(
   redis: Redis,
   key: string,
@@ -39,7 +51,37 @@ export async function loadConversationState(
   if (!value) return null;
 
   try {
-    return JSON.parse(value) as ConversationState;
+    const parsed = JSON.parse(value) as ConversationState;
+    // Migrate pre-stage-map records where completion was a terminal marker.
+    if (
+      (parsed.stage as string) === "get_started_complete" &&
+      parsed.responses.length > 0
+    ) {
+      const last = parsed.responses[parsed.responses.length - 1];
+      if (
+        last.response === "Tafuta kazi" ||
+        last.response === "tafuta_kazi"
+      ) {
+        return { ...parsed, stage: "tafuta_kazi" };
+      }
+      if (
+        last.response === "Tangaza kazi" ||
+        last.response === "tangaza_kazi"
+      ) {
+        return { ...parsed, stage: "tangaza_kazi" };
+      }
+      if (
+        last.response === "Taarifa zaidi" ||
+        last.response === "taarifa_zaidi"
+      ) {
+        return { ...parsed, stage: "taarifa_zaidi" };
+      }
+      return { ...parsed, stage: "get_started" };
+    }
+    if ((parsed.stage as string) === "get_started_complete") {
+      return { ...parsed, stage: "get_started" };
+    }
+    return parsed;
   } catch {
     return null;
   }
