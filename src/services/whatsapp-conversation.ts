@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { FastifyBaseLogger } from "fastify";
 import type { Redis } from "ioredis";
 import type { WhatsappIncomingMessageJob } from "../queues/zernio-events.js";
+import { sendTypingIndicator } from "./zernio-typing-indicator.js";
 
 const STATE_TTL_SECONDS = 7 * 24 * 60 * 60;
 const GET_STARTED_IMAGE_URL =
@@ -105,6 +106,14 @@ export async function processWhatsappMessage(
     logger.info({ eventId: job.eventId }, "Skipping WhatsApp standby message");
     return;
   }
+
+  await sendTypingIndicator(
+    job.conversationId,
+    job.accountId,
+    apiKey,
+    logger,
+    signal,
+  );
 
   signal.throwIfAborted();
   const key = stateKey(job.personKey, job.accountId);

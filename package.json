@@ -9,6 +9,7 @@
     "dev:worker": "node --env-file-if-exists=.env --import tsx --watch src/worker.ts",
     "dev:ngrok": "/tmp/ngrok-darwin-arm64/ngrok http 3000",
     "dev:redis": "redis-server --dir /tmp",
+    "redis:clear": "node --env-file-if-exists=.env --import tsx src/scripts/clear-redis.ts",
     "build": "tsc",
     "start": "node dist/app.js",
     "start:worker": "node dist/worker.js",
@@ -17,6 +18,7 @@
   "keywords": [],
   "type": "module",
   "dependencies": {
+    "@zernio/node": "^0.2.1078",
     "bullmq": "^6.3.11",
     "fastify": "^5.12.4",
     "fastify-plugin": "^6.0.0",
