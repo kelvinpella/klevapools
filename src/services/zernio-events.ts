@@ -21,6 +21,8 @@ export type ZernioWebhookPayload = {
   metadata?: {
     interactiveId?: string;
     interactiveType?: string;
+    flowResponseData?: Record<string, unknown>;
+    flowResponseJson?: string;
     standby?: boolean;
     [key: string]: unknown;
   } | null;

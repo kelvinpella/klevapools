@@ -10,10 +10,11 @@
     "dev:ngrok": "/tmp/ngrok-darwin-arm64/ngrok http 3000",
     "dev:redis": "redis-server --dir /tmp",
     "redis:clear": "node --env-file-if-exists=.env --import tsx src/scripts/clear-redis.ts",
+    "flow:create-find-job": "node --env-file-if-exists=.env --import tsx src/scripts/create-find-job-flow.ts",
     "build": "tsc",
     "start": "node dist/app.js",
     "start:worker": "node dist/worker.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --import tsx --test test/**/*.test.ts"
   },
   "keywords": [],
   "type": "module",

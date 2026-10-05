@@ -22,12 +22,16 @@ export type StagedConversationContext = {
   state: ConversationState;
 };
 
+import { parseFindJobSearchResponse } from "./stages/find-job/flow.js";
+
 function responseLabel(stage: ConversationState["stage"]): string {
   const definition = STAGE_MESSAGES[stage];
   const button = definition.buttons.find((item) => item.payload === stage);
   if (button) return button.title;
   if (stage === "get_started") return "Get started";
   if (stage === "tafuta_kazi") return "Tafuta kazi";
+  if (stage === "tafuta_kazi_search") return "Andika jina la kazi";
+  if (stage === "tafuta_kazi_mixed") return "Kazi mpya mchanganyiko";
   if (stage === "tangaza_kazi") return "Tangaza kazi";
   return "Taarifa zaidi";
 }
@@ -57,6 +61,24 @@ export async function handleStagedConversation({
       { eventId: state.promptEventId, stage: state.stage },
       "Sent WhatsApp stage message",
     );
+    return;
+  }
+
+  // Flow submission (nfm_reply): log results for now, stay on current Stage.
+  if (job.interactiveType === "nfm_reply") {
+    const parsed = parseFindJobSearchResponse(
+      job.flowResponseData ?? job.flowResponseJson,
+    );
+    logger.info(
+      {
+        eventId: job.eventId,
+        stage: state.stage,
+        keyword: parsed.keyword,
+        flowResponse: job.flowResponseData ?? job.flowResponseJson,
+      },
+      "Received WhatsApp Flow response",
+    );
+    await saveConversationState(redis, key, state);
     return;
   }
 

@@ -24,6 +24,9 @@ export function toWhatsappMessageJob(
 
   const personKey = createHash("sha256").update(senderIdentity).digest("hex");
   const interactiveId = payload.metadata?.interactiveId;
+  const interactiveType = payload.metadata?.interactiveType;
+  const flowResponseData = payload.metadata?.flowResponseData;
+  const flowResponseJson = payload.metadata?.flowResponseJson;
 
   return {
     eventId,
@@ -32,6 +35,14 @@ export function toWhatsappMessageJob(
     conversationId,
     interactiveId:
       typeof interactiveId === "string" ? interactiveId : undefined,
+    interactiveType:
+      typeof interactiveType === "string" ? interactiveType : undefined,
+    flowResponseData:
+      typeof flowResponseData === "object" && flowResponseData !== null
+        ? (flowResponseData as Record<string, unknown>)
+        : undefined,
+    flowResponseJson:
+      typeof flowResponseJson === "string" ? flowResponseJson : undefined,
     standby: payload.metadata?.standby === true,
   };
 }

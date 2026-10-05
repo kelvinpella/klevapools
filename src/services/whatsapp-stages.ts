@@ -1,58 +1,37 @@
-export type StageId =
-  | "get_started"
-  | "tafuta_kazi"
-  | "tangaza_kazi"
-  | "taarifa_zaidi";
+import { GET_STARTED_MESSAGE } from "./stages/get-started/message.js";
+import { FIND_JOB_MESSAGE } from "./stages/find-job/message.js";
+import { FIND_JOB_SEARCH_MESSAGE } from "./stages/find-job/search.js";
+import { FIND_JOB_MIXED_MESSAGE } from "./stages/find-job/mixed.js";
+import { POST_JOB_MESSAGE } from "./stages/post-job/message.js";
+import { MORE_INFO_MESSAGE } from "./stages/more-info/message.js";
 
-export type StageButton = {
-  type: "postback";
-  title: string;
-  payload: string;
-};
-
-export type StageMessage = {
-  body: string;
-  imageUrl?: string;
-  imageType?: "image" | "video" | "audio" | "file";
-  buttons: StageButton[];
-};
-
-export const BACK_BUTTON: StageButton = {
-  type: "postback",
-  title: "Rudi nyuma",
-  payload: "get_started",
-};
+export type {
+  StageId,
+  StageButton,
+  StageFlow,
+  StageMessage,
+} from "./stages/stage-types.js";
+export { BACK_BUTTON } from "./stages/stage-types.js";
+import type { StageId, StageMessage } from "./stages/stage-types.js";
 
 export const STAGE_MESSAGES: Record<StageId, StageMessage> = {
-  get_started: {
-    body: "Karibu Naja! Chagua unachotaka kufanya.",
-    imageUrl: "https://placehold.co/1200x630/png?text=Naja+Marketplace",
-    imageType: "image",
-    buttons: [
-      { type: "postback", title: "Tafuta kazi", payload: "tafuta_kazi" },
-      { type: "postback", title: "Tangaza kazi", payload: "tangaza_kazi" },
-      { type: "postback", title: "Taarifa zaidi", payload: "taarifa_zaidi" },
-    ],
-  },
-  tafuta_kazi: {
-    body: "[Placeholder] Tafuta kazi message",
-    buttons: [BACK_BUTTON],
-  },
-  tangaza_kazi: {
-    body: "[Placeholder] Tangaza kazi message",
-    buttons: [BACK_BUTTON],
-  },
-  taarifa_zaidi: {
-    body: "[Placeholder] Taarifa zaidi message",
-    buttons: [BACK_BUTTON],
-  },
+  get_started: GET_STARTED_MESSAGE,
+  tafuta_kazi: FIND_JOB_MESSAGE,
+  tafuta_kazi_search: FIND_JOB_SEARCH_MESSAGE,
+  tafuta_kazi_mixed: FIND_JOB_MIXED_MESSAGE,
+  tangaza_kazi: POST_JOB_MESSAGE,
+  taarifa_zaidi: MORE_INFO_MESSAGE,
 };
 
+const STAGE_IDS: ReadonlySet<string> = new Set([
+  "get_started",
+  "tafuta_kazi",
+  "tafuta_kazi_search",
+  "tafuta_kazi_mixed",
+  "tangaza_kazi",
+  "taarifa_zaidi",
+]);
+
 export function isStageId(value: string | undefined): value is StageId {
-  return (
-    value === "get_started" ||
-    value === "tafuta_kazi" ||
-    value === "tangaza_kazi" ||
-    value === "taarifa_zaidi"
-  );
+  return typeof value === "string" && STAGE_IDS.has(value);
 }
