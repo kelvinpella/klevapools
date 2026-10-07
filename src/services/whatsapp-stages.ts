@@ -4,6 +4,8 @@ import { FIND_JOB_SEARCH_MESSAGE } from "./stages/find-job/search.js";
 import { FIND_JOB_MIXED_MESSAGE } from "./stages/find-job/mixed.js";
 import { POST_JOB_MESSAGE } from "./stages/post-job/message.js";
 import { MORE_INFO_MESSAGE } from "./stages/more-info/message.js";
+import { JOB_DETAIL_MESSAGE } from "./stages/job-detail/message.js";
+import { JOB_APPLY_MESSAGE } from "./stages/job-apply/message.js";
 
 export type {
   StageId,
@@ -21,6 +23,8 @@ export const STAGE_MESSAGES: Record<StageId, StageMessage> = {
   tafuta_kazi_mixed: FIND_JOB_MIXED_MESSAGE,
   tangaza_kazi: POST_JOB_MESSAGE,
   taarifa_zaidi: MORE_INFO_MESSAGE,
+  job_detail: JOB_DETAIL_MESSAGE,
+  job_apply: JOB_APPLY_MESSAGE,
 };
 
 const STAGE_IDS: ReadonlySet<string> = new Set([
@@ -30,6 +34,8 @@ const STAGE_IDS: ReadonlySet<string> = new Set([
   "tafuta_kazi_mixed",
   "tangaza_kazi",
   "taarifa_zaidi",
+  "job_detail",
+  "job_apply",
 ]);
 
 export function isStageId(value: string | undefined): value is StageId {

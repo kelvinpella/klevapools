@@ -18,7 +18,9 @@ export const FIND_JOB_MESSAGE: StageMessage = {
   imageType: "image",
   buttons: [
     { type: "postback", title: "Andika jina la kazi", payload: "tafuta_kazi_search" },
-    { type: "postback", title: "Kazi mpya mchanganyiko", payload: "tafuta_kazi_mixed" },
+    // "Kazi mpya mchanganyiko" is 21 chars; Meta reply-button titles max out
+    // at 20, so the button uses the shortened label (body keeps the full phrase).
+    { type: "postback", title: "Kazi mchanganyiko", payload: "tafuta_kazi_mixed" },
     BACK_BUTTON,
   ],
 };

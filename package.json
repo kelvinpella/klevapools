@@ -19,6 +19,7 @@
   "keywords": [],
   "type": "module",
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "@zernio/node": "^0.2.1078",
     "bullmq": "^6.3.11",
     "fastify": "^5.12.4",

@@ -18,6 +18,9 @@ export type ConversationState = {
   promptSent: boolean;
   promptEventId: string;
   responses: ConversationResponse[];
+  selectedJobId?: string;
+  listOffset?: number;
+  listKeyword?: string;
 };
 
 export function conversationKey(personKey: string, accountId: string): string {

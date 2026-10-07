@@ -2,6 +2,7 @@ import { Zernio } from "@zernio/node";
 import type { WhatsappIncomingMessageJob } from "../queues/zernio-events.js";
 import { STAGE_MESSAGES, type StageId } from "./whatsapp-stages.js";
 import { getFindJobSearchFlowId } from "./stages/find-job/flow.js";
+import type { CarouselCard } from "./jobs/job-carousel.js";
 
 export async function sendStageMessage(
   stage: StageId,
@@ -73,6 +74,80 @@ export async function sendStageMessage(
           }
         : {}),
       buttons: definition.buttons,
+    },
+    headers: { "Idempotency-Key": idempotencyKey },
+    signal,
+  });
+
+  if (error) {
+    throw new Error("Zernio message send failed", { cause: error });
+  }
+}
+
+export async function sendJobCarousel(
+  heading: string,
+  cards: CarouselCard[],
+  job: WhatsappIncomingMessageJob,
+  apiKey: string,
+  idempotencyKey: string,
+  signal: AbortSignal,
+): Promise<void> {
+  const zernio = new Zernio({ apiKey });
+  const { error } = await zernio.messages.sendInboxMessage({
+    path: { conversationId: job.conversationId },
+    body: {
+      accountId: job.accountId,
+      message: heading,
+      interactive: {
+        type: "carousel",
+        body: { text: heading },
+        action: {
+          cards: cards.map((card, index) => ({
+            card_index: index,
+            type: "cta_url",
+            header: { type: "image", image: { link: card.imageUrl } },
+            body: { text: card.body },
+            action: {
+              buttons: card.buttons.map((button) => ({
+                type: "quick_reply",
+                quick_reply: { id: button.id, title: button.title },
+              })),
+            },
+          })),
+        },
+      },
+    },
+    headers: { "Idempotency-Key": idempotencyKey },
+    signal,
+  });
+
+  if (error) {
+    throw new Error("Zernio carousel send failed", { cause: error });
+  }
+}
+
+export async function sendJobText(
+  body: string,
+  buttons: { title: string; payload: string }[],
+  job: WhatsappIncomingMessageJob,
+  apiKey: string,
+  idempotencyKey: string,
+  signal: AbortSignal,
+  opts?: { imageUrl?: string; imageType?: "image" | "video" | "audio" | "file" },
+): Promise<void> {
+  const zernio = new Zernio({ apiKey });
+  const { error } = await zernio.messages.sendInboxMessage({
+    path: { conversationId: job.conversationId },
+    body: {
+      accountId: job.accountId,
+      message: body,
+      ...(opts?.imageUrl
+        ? {
+            attachmentUrl: opts.imageUrl,
+            attachmentType: opts.imageType ?? "image",
+          }
+        : {}),
+      buttons: buttons.map((button) => ({ type: "postback" as const, ...button })),
     },
     headers: { "Idempotency-Key": idempotencyKey },
     signal,

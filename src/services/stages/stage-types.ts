@@ -4,7 +4,9 @@ export type StageId =
   | "tafuta_kazi_search"
   | "tafuta_kazi_mixed"
   | "tangaza_kazi"
-  | "taarifa_zaidi";
+  | "taarifa_zaidi"
+  | "job_detail"
+  | "job_apply";
 
 export type StageButton = {
   type: "postback";

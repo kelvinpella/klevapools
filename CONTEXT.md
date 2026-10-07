@@ -19,3 +19,7 @@ _Avoid_: button, response, choice
 **Flow**:
 A WhatsApp native form (DRAFT for testing, never published by this codebase) opened from a Stage to collect input. Flow submissions arrive as nfm_reply and are logged.
 _Avoid_: form, modal
+
+**Job**:
+A piece of work in the marketplace with a title, description, budget, and skills.
+_Avoid_: gig, posting

@@ -2,6 +2,8 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { STAGE_MESSAGES as REGISTRY } from "../../src/services/whatsapp-stages.js";
+import { setJobsDataSource } from "../../src/services/jobs/job-repository.js";
+import type { JobListing } from "../../src/services/jobs/job-types.js";
 import type {
   ConversationStage,
   ConversationState,
@@ -16,7 +18,42 @@ const EXPECTED_STAGES: ConversationStage[] = [
   "tafuta_kazi_mixed",
   "tangaza_kazi",
   "taarifa_zaidi",
+  "job_detail",
+  "job_apply",
 ];
+
+const STUB_JOBS: JobListing[] = [
+  {
+    id: "11111111-1111-1111-1111-111111111111",
+    createdAt: "2026-10-02T10:00:00Z",
+    title: "Mpishi",
+    description: "Tunatafuta mpishi mwenye uzoefu wa kupika chakula cha asili.",
+    budget: 150000,
+    skills: ["kupika"],
+  },
+  {
+    id: "22222222-2222-2222-2222-222222222222",
+    createdAt: "2026-10-01T10:00:00Z",
+    title: "Dereva",
+    description: "Dereva wa gari binafsi jijini.",
+    budget: null,
+    skills: ["kuendesha"],
+  },
+];
+
+function stubJobs() {
+  setJobsDataSource({
+    listJobs: async () => ({ jobs: STUB_JOBS, hasMore: false }),
+    searchJobs: async (keyword: string) => ({
+      jobs: STUB_JOBS.filter((job) =>
+        `${job.title} ${job.description}`.toLowerCase().includes(keyword.toLowerCase()),
+      ),
+      hasMore: false,
+    }),
+    getJobById: async (id: string) =>
+      STUB_JOBS.find((job) => job.id === id) ?? null,
+  });
+}
 
 describe("STAGE_MESSAGES map", () => {
   it("contains get_started plus extensible stages", () => {
@@ -54,8 +91,19 @@ describe("STAGE_MESSAGES map", () => {
     );
     assert.deepEqual(
       tafuta.buttons.map((b) => b.title),
-      ["Andika jina la kazi", "Kazi mpya mchanganyiko", "Rudi nyuma"],
+      ["Andika jina la kazi", "Kazi mchanganyiko", "Rudi nyuma"],
     );
+  });
+
+  it("keeps every menu button title within Meta's 20-char reply limit", () => {
+    for (const [stage, message] of Object.entries(REGISTRY)) {
+      for (const button of message.buttons) {
+        assert.ok(
+          button.title.length <= 20,
+          `${stage} button "${button.title}" exceeds 20 chars`,
+        );
+      }
+    }
   });
 });
 
@@ -124,6 +172,7 @@ describe("handleStagedConversation transitions", () => {
     originalLegacyFlowId = process.env["ZERNIO_TAFUTA_FLOW_ID"];
     delete process.env["ZERNIO_FIND_JOB_FLOW_ID"];
     delete process.env["ZERNIO_TAFUTA_FLOW_ID"];
+    stubJobs();
     globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
       let parsed: Record<string, unknown>;
       let url: URL;
@@ -145,6 +194,7 @@ describe("handleStagedConversation transitions", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    setJobsDataSource(null);
     if (originalFlowId === undefined) delete process.env["ZERNIO_FIND_JOB_FLOW_ID"];
     else process.env["ZERNIO_FIND_JOB_FLOW_ID"] = originalFlowId;
     if (originalLegacyFlowId === undefined) delete process.env["ZERNIO_TAFUTA_FLOW_ID"];
@@ -197,7 +247,7 @@ describe("handleStagedConversation transitions", () => {
     assert.ok(!("interactive" in fetchCalls[0].body));
   });
 
-  it("selecting tafuta_kazi_mixed moves to mixed placeholder", async () => {
+  it("selecting tafuta_kazi_mixed sends the live job carousel", async () => {
     const redis = makeRedis();
     const state = makeState({ stage: "tafuta_kazi" });
     await handleStagedConversation({
@@ -212,12 +262,15 @@ describe("handleStagedConversation transitions", () => {
 
     assert.equal(state.stage, "tafuta_kazi_mixed");
     assert.equal(fetchCalls.length, 1);
-    assert.ok(
-      (fetchCalls[0].body["message"] as string).includes("Kazi mpya mchanganyiko"),
-    );
+    const interactive = fetchCalls[0].body["interactive"] as {
+      type: string;
+      action: { cards: unknown[] };
+    };
+    assert.equal(interactive.type, "carousel");
+    assert.equal(interactive.action.cards.length, 2);
   });
 
-  it("nfm_reply flow responses are logged without sending or changing stage", async () => {
+  it("nfm_reply flow responses search jobs and send the carousel", async () => {
     const redis = makeRedis();
     const logged: Record<string, unknown>[] = [];
     const logger = {
@@ -229,7 +282,7 @@ describe("handleStagedConversation transitions", () => {
       job: makeJob({
         eventId: "evt-flow",
         interactiveType: "nfm_reply",
-        flowResponseData: { keyword: "mpishi" },
+        flowResponseData: { keyword: "a" },
       }),
       redis: redis as never,
       apiKey: "key",
@@ -240,9 +293,94 @@ describe("handleStagedConversation transitions", () => {
     });
 
     assert.equal(state.stage, "tafuta_kazi_search");
-    assert.equal(fetchCalls.length, 0);
-    assert.equal(logged.length, 1);
-    assert.equal(logged[0]["keyword"], "mpishi");
+    assert.equal(state.listKeyword, "a");
+    assert.equal(fetchCalls.length, 1);
+    const interactive = fetchCalls[0].body["interactive"] as {
+      type: string;
+    };
+    assert.equal(interactive.type, "carousel");
+    assert.ok(logged.some((entry) => entry["keyword"] === "a"));
+  });
+
+  it("a single search hit sends a reply-buttons message with the card image", async () => {
+    const redis = makeRedis();
+    const state = makeState({ stage: "tafuta_kazi_search" });
+    await handleStagedConversation({
+      job: makeJob({
+        eventId: "evt-flow-single",
+        interactiveType: "nfm_reply",
+        flowResponseData: { keyword: "mpishi" },
+      }),
+      redis: redis as never,
+      apiKey: "key",
+      logger: silentLogger,
+      signal: AbortSignal.timeout(5000),
+      key: "k",
+      state,
+    });
+
+    assert.equal(fetchCalls.length, 1);
+    assert.ok(!("interactive" in fetchCalls[0].body));
+    assert.ok(
+      (fetchCalls[0].body["attachmentUrl"] as string).includes("placehold.co"),
+    );
+    assert.ok(
+      (fetchCalls[0].body["message"] as string).includes("mpishi mwenye uzoefu"),
+    );
+    const buttons = fetchCalls[0].body["buttons"] as { payload: string }[];
+    assert.ok(
+      buttons.some((b) =>
+        b.payload.startsWith("job_apply:11111111-1111-1111-1111-111111111111"),
+      ),
+    );
+    assert.equal(state.selectedJobId, "11111111-1111-1111-1111-111111111111");
+  });
+
+  it("tapping Soma zaidi sends the full job description", async () => {
+    const redis = makeRedis();
+    const state = makeState({ stage: "tafuta_kazi_mixed" });
+    await handleStagedConversation({
+      job: makeJob({
+        eventId: "evt-detail",
+        interactiveId: "job_detail:11111111-1111-1111-1111-111111111111",
+      }),
+      redis: redis as never,
+      apiKey: "key",
+      logger: silentLogger,
+      signal: AbortSignal.timeout(5000),
+      key: "k",
+      state,
+    });
+
+    assert.equal(state.stage, "job_detail");
+    assert.equal(state.selectedJobId, "11111111-1111-1111-1111-111111111111");
+    assert.equal(fetchCalls.length, 1);
+    assert.ok(
+      (fetchCalls[0].body["message"] as string).includes("mpishi mwenye uzoefu"),
+    );
+  });
+
+  it("tapping Omba logs the application without writing to the database", async () => {
+    const redis = makeRedis();
+    const state = makeState({ stage: "job_detail" });
+    await handleStagedConversation({
+      job: makeJob({
+        eventId: "evt-apply",
+        interactiveId: "job_apply:11111111-1111-1111-1111-111111111111",
+      }),
+      redis: redis as never,
+      apiKey: "key",
+      logger: silentLogger,
+      signal: AbortSignal.timeout(5000),
+      key: "k",
+      state,
+    });
+
+    assert.equal(state.stage, "job_apply");
+    assert.equal(fetchCalls.length, 1);
+    assert.ok(
+      (fetchCalls[0].body["message"] as string).includes("Omba limepokelewa"),
+    );
   });
 
   it("free text replays the current stage without changing it", async () => {

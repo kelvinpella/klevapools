@@ -15,19 +15,13 @@ export const FIND_JOB_SEARCH_FLOW_JSON = {
       id: "SEARCH",
       title: "Tafuta kazi",
       terminal: true,
-      data: {
-        keyword: {
-          type: "string",
-          __example__: "mpishi",
-        },
-      },
+      data: {},
       layout: {
         type: "SingleColumnLayout",
         children: [
           {
             type: "Form",
             name: "search_form",
-            init_values: {},
             children: [
               {
                 type: "TextHeading",
@@ -38,13 +32,13 @@ export const FIND_JOB_SEARCH_FLOW_JSON = {
                 label: "Andika jina la kazi",
                 required: true,
                 name: "keyword",
-                input_type: "text",
-                helper_text: "Mfano: mpishi, dereva, mlinzi",
+                ["input-type"]: "text",
+                ["helper-text"]: "Mfano: mpishi, dereva, mlinzi",
               },
               {
                 type: "Footer",
                 label: "Tafuta",
-                on_click_action: {
+                ["on-click-action"]: {
                   name: "complete",
                   payload: {
                     keyword: "${form.keyword}",
@@ -73,40 +67,87 @@ export type FindJobSearchResult = {
 
 // Uses official @zernio/node SDK. Creates a DRAFT and uploads JSON.
 // Never calls publish — stays DRAFT for testing.
+// Reuses the existing DRAFT with the same name if Meta reports
+// "Flow name is not unique" (error_subcode 4016019).
 export async function createFindJobSearchDraftFlow(
   accountId: string,
   apiKey: string,
   signal?: AbortSignal,
-): Promise<{ flowId: string }> {
+): Promise<{ flowId: string; reused: boolean }> {
   const zernio = new Zernio({ apiKey });
 
-  const { data, error } = await zernio.whatsappflows.createWhatsAppFlow({
-    body: {
-      accountId,
-      name: FIND_JOB_SEARCH_FLOW_NAME,
-      categories: [...FIND_JOB_SEARCH_FLOW_CATEGORIES],
-    },
-    signal,
-  });
-  if (error || !data) {
-    throw new Error("Zernio flow draft creation failed", { cause: error });
-  }
-  const flowId = data.flow?.id;
-  if (!flowId) {
-    throw new Error("Zernio flow draft creation returned no id");
-  }
+  const uploadJson = async (flowId: string): Promise<void> => {
+    const { error: uploadError } =
+      await zernio.whatsappflows.uploadWhatsAppFlowJson({
+        path: { flowId },
+        body: { accountId, flow_json: FIND_JOB_SEARCH_FLOW_JSON },
+        signal,
+      });
+    if (uploadError) {
+      throw new Error("Zernio flow JSON upload failed", { cause: uploadError });
+    }
+  };
 
-  const { error: uploadError } =
-    await zernio.whatsappflows.uploadWhatsAppFlowJson({
-      path: { flowId },
-      body: { accountId, flow_json: FIND_JOB_SEARCH_FLOW_JSON },
+  const listFlowsByName = async (
+    name: string,
+  ): Promise<{ id?: string; name?: string; status?: string }[]> => {
+    const { data, error } = await zernio.whatsappflows.listWhatsAppFlows({
+      query: { accountId },
       signal,
     });
-  if (uploadError) {
-    throw new Error("Zernio flow JSON upload failed", { cause: uploadError });
+    if (error || !data?.flows) return [];
+    return data.flows.filter(
+      (flow: { name?: string }) => flow.name === name,
+    );
+  };
+
+  const createWithName = async (
+    name: string,
+  ): Promise<{ flowId: string } | undefined> => {
+    const { data, error } = await zernio.whatsappflows.createWhatsAppFlow({
+      body: {
+        accountId,
+        name,
+        categories: [...FIND_JOB_SEARCH_FLOW_CATEGORIES],
+      },
+      signal,
+    });
+    if (!error && data?.flow?.id) return { flowId: data.flow.id };
+    return undefined;
+  };
+
+  const created = await createWithName(FIND_JOB_SEARCH_FLOW_NAME);
+  if (created) {
+    await uploadJson(created.flowId);
+    return { flowId: created.flowId, reused: false };
   }
 
-  return { flowId };
+  // Name taken: reuse the DRAFT if there is one, otherwise version the name
+  // (existing is PUBLISHED/BLOCKED/etc. and can't be overwritten).
+  const existing = await listFlowsByName(FIND_JOB_SEARCH_FLOW_NAME);
+  const draft = existing.find((flow) => flow.status === "DRAFT" && flow.id);
+  if (draft?.id) {
+    await uploadJson(draft.id);
+    return { flowId: draft.id, reused: true };
+  }
+
+  for (let version = 2; version <= 5; version += 1) {
+    const versioned = `${FIND_JOB_SEARCH_FLOW_NAME}_v${version}`;
+    const alreadyTaken = (await listFlowsByName(versioned)).length > 0;
+    if (alreadyTaken) continue;
+    const retry = await createWithName(versioned);
+    if (retry) {
+      await uploadJson(retry.flowId);
+      console.warn(
+        `[find-job-flow] Name ${FIND_JOB_SEARCH_FLOW_NAME} taken (status: ${existing.map((flow) => flow.status).join(",") || "unknown"}), created ${versioned} instead.`,
+      );
+      return { flowId: retry.flowId, reused: false };
+    }
+  }
+
+  throw new Error(
+    `Zernio flow draft creation failed: name ${FIND_JOB_SEARCH_FLOW_NAME} taken by non-DRAFT flow (${existing.map((flow) => `${flow.status}:${flow.id}`).join(", ") || "unknown"}). Rename the constant or delete the blocking flow.`,
+  );
 }
 
 export function parseFindJobSearchResponse(
