@@ -24,14 +24,34 @@ export function toWhatsappMessageJob(
 
   const personKey = createHash("sha256").update(senderIdentity).digest("hex");
   const interactiveId = payload.metadata?.interactiveId;
+  const buttonPayload = payload.metadata?.buttonPayload;
+  const interactiveType = payload.metadata?.interactiveType;
+  const flowResponseData = payload.metadata?.flowResponseData;
+  const flowResponseJson = payload.metadata?.flowResponseJson;
+
+  // Carousel quick-reply taps arrive as buttonPayload, menu buttons as
+  // interactiveId. Prefer interactiveId when both are present.
+  const tapId =
+    typeof interactiveId === "string"
+      ? interactiveId
+      : typeof buttonPayload === "string"
+        ? buttonPayload
+        : undefined;
 
   return {
     eventId,
     personKey,
     accountId,
     conversationId,
-    interactiveId:
-      typeof interactiveId === "string" ? interactiveId : undefined,
+    interactiveId: tapId,
+    interactiveType:
+      typeof interactiveType === "string" ? interactiveType : undefined,
+    flowResponseData:
+      typeof flowResponseData === "object" && flowResponseData !== null
+        ? (flowResponseData as Record<string, unknown>)
+        : undefined,
+    flowResponseJson:
+      typeof flowResponseJson === "string" ? flowResponseJson : undefined,
     standby: payload.metadata?.standby === true,
   };
 }

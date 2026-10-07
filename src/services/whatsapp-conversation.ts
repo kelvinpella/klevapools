@@ -7,6 +7,7 @@ import {
 } from "./whatsapp-conversation-state.js";
 import { handleNewConversation } from "./whatsapp-new-conversation.js";
 import { handleStagedConversation } from "./whatsapp-staged-conversation.js";
+import { parseJobPayload, parseMorePayload } from "./jobs/job-carousel.js";
 import { sendTypingIndicator } from "./zernio-typing-indicator.js";
 
 export async function processWhatsappMessage(
@@ -35,6 +36,33 @@ export async function processWhatsappMessage(
   signal.throwIfAborted();
 
   if (!state) {
+    // Job payloads are self-contained (job id / offset travel in the tap),
+    // so old card buttons keep working after state was cleared by Omba.
+    if (
+      parseJobPayload(job.interactiveId) ||
+      parseMorePayload(job.interactiveId) ||
+      job.interactiveType === "nfm_reply"
+    ) {
+      logger.info(
+        { eventId: job.eventId },
+        "Handling job tap without stored state",
+      );
+      await handleStagedConversation({
+        job,
+        redis,
+        apiKey,
+        logger,
+        signal,
+        key,
+        state: {
+          stage: "tafuta_kazi",
+          promptSent: true,
+          promptEventId: job.eventId,
+          responses: [],
+        },
+      });
+      return;
+    }
     await handleNewConversation({ job, redis, apiKey, logger, signal, key });
     return;
   }

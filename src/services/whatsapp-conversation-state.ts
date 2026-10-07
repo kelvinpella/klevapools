@@ -18,6 +18,9 @@ export type ConversationState = {
   promptSent: boolean;
   promptEventId: string;
   responses: ConversationResponse[];
+  selectedJobId?: string;
+  listOffset?: number;
+  listKeyword?: string;
 };
 
 export function conversationKey(personKey: string, accountId: string): string {
@@ -93,4 +96,11 @@ export async function saveConversationState(
   state: ConversationState,
 ): Promise<void> {
   await redis.set(key, JSON.stringify(state), "EX", STATE_TTL_SECONDS);
+}
+
+export async function clearConversationState(
+  redis: Redis,
+  key: string,
+): Promise<void> {
+  await redis.del(key);
 }
