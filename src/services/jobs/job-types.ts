@@ -5,6 +5,7 @@ export type JobListing = {
   description: string | null;
   budget: number | null;
   skills: string[];
+  posterPhone: string | null;
 };
 
 export type JobPage = {

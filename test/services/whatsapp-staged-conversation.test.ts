@@ -9,6 +9,7 @@ import type {
   ConversationState,
 } from "../../src/services/whatsapp-conversation-state.js";
 import { handleStagedConversation } from "../../src/services/whatsapp-staged-conversation.js";
+import { processWhatsappMessage } from "../../src/services/whatsapp-conversation.js";
 import type { WhatsappIncomingMessageJob } from "../../src/queues/zernio-events.js";
 
 const EXPECTED_STAGES: ConversationStage[] = [
@@ -30,6 +31,7 @@ const STUB_JOBS: JobListing[] = [
     description: "Tunatafuta mpishi mwenye uzoefu wa kupika chakula cha asili.",
     budget: 150000,
     skills: ["kupika"],
+    posterPhone: "+255712345678",
   },
   {
     id: "22222222-2222-2222-2222-222222222222",
@@ -38,6 +40,7 @@ const STUB_JOBS: JobListing[] = [
     description: "Dereva wa gari binafsi jijini.",
     budget: null,
     skills: ["kuendesha"],
+    posterPhone: "+255798765432",
   },
 ];
 
@@ -73,6 +76,17 @@ describe("STAGE_MESSAGES map", () => {
   it("gives get_started three option buttons that are themselves stages", () => {
     const payloads = REGISTRY["get_started"].buttons.map((b) => b.payload);
     assert.deepEqual(new Set(payloads), new Set(["tafuta_kazi", "tangaza_kazi", "taarifa_zaidi"]));
+  });
+
+  it("renders the get-started menu with banner and formatted options", () => {
+    const menu = REGISTRY["get_started"];
+    assert.equal(
+      menu.imageUrl,
+      "https://res.cloudinary.com/dpw2dpthx/image/upload/v1791069460/Naja_get_started_banner_caezkp.jpg",
+    );
+    assert.ok(menu.body.includes("Karibu! Naja ni kwa ajili ya matangazo"));
+    assert.ok(menu.body.includes("*Tafuta kazi*"));
+    assert.ok(menu.body.includes("*Tangaza kazi*"));
   });
 
   it("renders tafuta_kazi menu with banner, formatted body, and ordered options", () => {
@@ -115,6 +129,7 @@ type FakeRedis = {
     value: string,
     ..._args: unknown[]
   ) => Promise<string>;
+  del: (key: string) => Promise<number>;
 };
 
 function makeRedis(): FakeRedis {
@@ -126,6 +141,7 @@ function makeRedis(): FakeRedis {
       store.set(key, value);
       return "OK";
     },
+    del: async (key: string) => (store.delete(key) ? 1 : 0),
   };
 }
 
@@ -228,6 +244,50 @@ describe("handleStagedConversation transitions", () => {
     assert.equal(saved.stage, "tafuta_kazi");
   });
 
+  it("falls back to text-only when the banner image send fails", async () => {
+    let calls = 0;
+    globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
+      calls += 1;
+      let parsed: Record<string, unknown>;
+      let url: URL;
+      if (input instanceof Request) {
+        url = new URL(input.url);
+        const text = await input.text();
+        parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+      } else {
+        parsed = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        url = new URL(String(input));
+      }
+      fetchCalls.push({ url, body: parsed });
+      if (calls === 1) {
+        return new Response(JSON.stringify({ error: { message: "bad image" } }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ success: true, data: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+    const redis = makeRedis();
+    const state = makeState();
+    await handleStagedConversation({
+      job: makeJob({ eventId: "evt-select", interactiveId: "tafuta_kazi" }),
+      redis: redis as never,
+      apiKey: "key",
+      logger: silentLogger,
+      signal: AbortSignal.timeout(5000),
+      key: "k",
+      state,
+    });
+
+    assert.equal(state.stage, "tafuta_kazi");
+    assert.equal(calls, 2);
+    assert.ok("attachmentUrl" in fetchCalls[0].body);
+    assert.ok(!("attachmentUrl" in fetchCalls[1].body));
+  });
+
   it("selecting tafuta_kazi_search moves to search and falls back to buttons without a flow id", async () => {
     const redis = makeRedis();
     const state = makeState({ stage: "tafuta_kazi" });
@@ -322,7 +382,7 @@ describe("handleStagedConversation transitions", () => {
     assert.equal(fetchCalls.length, 1);
     assert.ok(!("interactive" in fetchCalls[0].body));
     assert.ok(
-      (fetchCalls[0].body["attachmentUrl"] as string).includes("placehold.co"),
+      (fetchCalls[0].body["attachmentUrl"] as string).includes("kazi_mpya_kvncsh"),
     );
     assert.ok(
       (fetchCalls[0].body["message"] as string).includes("mpishi mwenye uzoefu"),
@@ -334,6 +394,33 @@ describe("handleStagedConversation transitions", () => {
       ),
     );
     assert.equal(state.selectedJobId, "11111111-1111-1111-1111-111111111111");
+  });
+
+  it("old card buttons still work after state was cleared by Omba", async () => {
+    const redis = makeRedis();
+    await processWhatsappMessage(
+      makeJob({
+        eventId: "evt-old-tap",
+        interactiveId: "job_detail:11111111-1111-1111-1111-111111111111",
+      }),
+      redis as never,
+      "key",
+      silentLogger,
+      AbortSignal.timeout(5000),
+    );
+
+    assert.ok(fetchCalls.length >= 1);
+    assert.ok(
+      (fetchCalls[fetchCalls.length - 1].body["message"] as string).includes(
+        "mpishi mwenye uzoefu",
+      ),
+    );
+    const saved = JSON.parse(
+      redis.store.get(
+        [...redis.store.keys()].find((k) => k.startsWith("naja:")) as string,
+      ) as string,
+    ) as ConversationState;
+    assert.equal(saved.stage, "job_detail");
   });
 
   it("tapping Soma zaidi sends the full job description", async () => {
@@ -360,8 +447,9 @@ describe("handleStagedConversation transitions", () => {
     );
   });
 
-  it("tapping Omba logs the application without writing to the database", async () => {
+  it("tapping Omba shares the poster contact and clears the stage", async () => {
     const redis = makeRedis();
+    redis.store.set("k", JSON.stringify(makeState({ stage: "job_detail" })));
     const state = makeState({ stage: "job_detail" });
     await handleStagedConversation({
       job: makeJob({
@@ -376,11 +464,12 @@ describe("handleStagedConversation transitions", () => {
       state,
     });
 
-    assert.equal(state.stage, "job_apply");
     assert.equal(fetchCalls.length, 1);
-    assert.ok(
-      (fetchCalls[0].body["message"] as string).includes("Omba limepokelewa"),
-    );
+    const message = fetchCalls[0].body["message"] as string;
+    assert.ok(message.startsWith("✅ Waweza wasiliana"));
+    assert.ok(message.includes("Phone:+255712345678"));
+    assert.ok(!("buttons" in fetchCalls[0].body));
+    assert.equal(redis.store.get("k"), undefined);
   });
 
   it("free text replays the current stage without changing it", async () => {

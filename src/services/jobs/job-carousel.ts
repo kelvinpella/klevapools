@@ -1,7 +1,7 @@
 import type { JobListing, JobPage } from "./job-types.js";
 
 export const JOB_CARD_IMAGE_URL =
-  "https://placehold.co/600x400/png?text=Naja+Kazi";
+  "https://res.cloudinary.com/dpw2dpthx/image/upload/v1791342164/kazi_mpya_kvncsh.jpg";
 
 export const JOB_DETAIL_PREFIX = "job_detail";
 export const JOB_APPLY_PREFIX = "job_apply";
@@ -181,6 +181,10 @@ export function buildJobListView(
     cards.push(moreCard(origin, offset + page.jobs.length));
   }
   return { kind: "carousel", heading, cards };
+}
+
+export function applyConfirmationBody(phone: string): string {
+  return `✅ Waweza wasiliana na aliyetangaza hii kazi kwa namba hizi hapa chini.\n\nPhone:${phone.trim()}`;
 }
 
 export function searchHeading(keyword: string): string {

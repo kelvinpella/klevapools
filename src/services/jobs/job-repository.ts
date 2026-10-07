@@ -14,6 +14,7 @@ type JobRow = {
   description: string | null;
   budget: number | null;
   skills: string[] | null;
+  created_by_phone: string | null;
 };
 
 export type JobsDataSource = {
@@ -37,6 +38,7 @@ function toListing(row: JobRow): JobListing {
     description: row.description,
     budget: row.budget,
     skills: row.skills ?? [],
+    posterPhone: row.created_by_phone,
   };
 }
 
@@ -48,7 +50,7 @@ function toPage(rows: JobRow[]): JobPage {
 function baseQuery(client: SupabaseClient, offset: number) {
   return client
     .from("jobs")
-    .select("id,created_at,title,description,budget,skills")
+    .select("id,created_at,title,description,budget,skills,created_by_phone")
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .range(offset, offset + JOB_FETCH_SIZE - 1);
@@ -103,7 +105,7 @@ export async function getJobById(
   if (dataSourceOverride) return dataSourceOverride.getJobById(id);
   const { data, error } = await (client ?? getJobsClient())
     .from("jobs")
-    .select("id,created_at,title,description,budget,skills")
+    .select("id,created_at,title,description,budget,skills,created_by_phone")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error("Job lookup failed", { cause: error });

@@ -3,6 +3,7 @@ import type { Redis } from "ioredis";
 import type { WhatsappIncomingMessageJob } from "../queues/zernio-events.js";
 import {
   saveConversationState,
+  clearConversationState,
   stageIdempotencyKey,
   type ConversationState,
 } from "./whatsapp-conversation-state.js";
@@ -28,6 +29,7 @@ import {
   JOB_CARD_IMAGE_URL,
   MORE_BATCH_HEADING,
   MIXED_HEADING,
+  applyConfirmationBody,
   applyPayload,
   buildJobListView,
   detailPayload,
@@ -294,26 +296,27 @@ export async function handleStagedConversation({
         );
         return;
       }
+      // Omba ends the stage: share the poster's contact, then clear state so
+      // the next free-text message starts a fresh get-started menu. No
+      // buttons: with state gone a tap would have nowhere to resume to.
+      // Old card buttons keep working statelessly through their payload ids.
       await sendJobText(
-        `Omba limepokelewa kwa *${fitTitle(listing.title, 80)}*. Tutakujulisha hatua zinazofuata.`,
-        [{ title: "Rudi nyuma", payload: "get_started" }],
+        applyConfirmationBody(listing.posterPhone ?? ""),
+        [],
         job,
         apiKey,
         stageIdempotencyKey("job_apply", `${job.eventId}:${listing.id}`),
         signal,
       );
       signal.throwIfAborted();
-      state.stage = "job_apply";
-      state.promptSent = true;
-      state.selectedJobId = listing.id;
-      await pushResponse(redis, key, state, {
-        stage: "job_apply",
-        response: `Omba: ${listing.title ?? listing.id}`,
-        eventId: job.eventId,
-      });
       logger.info(
         { eventId: job.eventId, jobId: listing.id, personKey: job.personKey },
         "Logged job application",
+      );
+      await clearConversationState(redis, key);
+      logger.info(
+        { eventId: job.eventId, jobId: listing.id },
+        "Cleared conversation state after job application",
       );
     } catch (error) {
       logger.error(

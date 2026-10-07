@@ -97,3 +97,10 @@ export async function saveConversationState(
 ): Promise<void> {
   await redis.set(key, JSON.stringify(state), "EX", STATE_TTL_SECONDS);
 }
+
+export async function clearConversationState(
+  redis: Redis,
+  key: string,
+): Promise<void> {
+  await redis.del(key);
+}

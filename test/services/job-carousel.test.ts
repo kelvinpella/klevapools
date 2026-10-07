@@ -5,6 +5,7 @@ import {
   APPLY_BUTTON_TITLE,
   DETAIL_BUTTON_TITLE,
   MORE_BUTTON_TITLE,
+  applyConfirmationBody,
   buildJobListView,
   cardBody,
   detailPayload,
@@ -29,6 +30,7 @@ function job(overrides: Partial<JobListing> = {}): JobListing {
     description: "A".repeat(200),
     budget: 150000,
     skills: ["kupika"],
+    posterPhone: "+255712345678",
     ...overrides,
   };
 }
@@ -140,6 +142,12 @@ describe("job carousel builder", () => {
   it("names the keyword in the empty search body", () => {
     assert.ok(emptySearchBody("mpishi").includes('"mpishi"'));
     assert.ok(!emptySearchBody("").includes('""'));
+  });
+
+  it("builds the apply confirmation with checkmark and poster phone", () => {
+    const body = applyConfirmationBody("+255712345678");
+    assert.ok(body.startsWith("✅ Waweza wasiliana"));
+    assert.ok(body.includes("\n\nPhone:+255712345678"));
   });
 
   it("keeps every carousel button title and id within Meta limits", () => {

@@ -62,25 +62,44 @@ export async function sendStageMessage(
     // No flow configured (testing without a DRAFT): fall through to buttons.
   }
 
-  const { error } = await zernio.messages.sendInboxMessage({
-    path: { conversationId: job.conversationId },
-    body: {
-      accountId: job.accountId,
-      message: definition.body,
-      ...(definition.imageUrl
-        ? {
-            attachmentUrl: definition.imageUrl,
-            attachmentType: definition.imageType ?? "image",
-          }
-        : {}),
-      buttons: definition.buttons,
-    },
-    headers: { "Idempotency-Key": idempotencyKey },
-    signal,
-  });
+  const sendButtons = async (withImage: boolean): Promise<void> => {
+    const { error } = await zernio.messages.sendInboxMessage({
+      path: { conversationId: job.conversationId },
+      body: {
+        accountId: job.accountId,
+        message: definition.body,
+        ...(withImage && definition.imageUrl
+          ? {
+              attachmentUrl: definition.imageUrl,
+              attachmentType: definition.imageType ?? "image",
+            }
+          : {}),
+        buttons: definition.buttons,
+      },
+      headers: { "Idempotency-Key": idempotencyKey },
+      signal,
+    });
 
-  if (error) {
-    throw new Error("Zernio message send failed", { cause: error });
+    if (error) {
+      throw new Error("Zernio message send failed", { cause: error });
+    }
+  };
+
+  if (!definition.imageUrl) {
+    await sendButtons(false);
+    return;
+  }
+
+  // A dead banner must never brick the menu: on image failure (bad URL,
+  // unreachable host) fall back to the text-only message.
+  try {
+    await sendButtons(true);
+  } catch (error) {
+    console.warn(
+      `[whatsapp-stage-messages] Image send failed for stage ${stage}, falling back to text-only:`,
+      error instanceof Error ? error.message : error,
+    );
+    await sendButtons(false);
   }
 }
 
@@ -147,7 +166,16 @@ export async function sendJobText(
             attachmentType: opts.imageType ?? "image",
           }
         : {}),
-      buttons: buttons.map((button) => ({ type: "postback" as const, ...button })),
+      // No buttons: plain text message (e.g. terminal confirmations after
+      // state is cleared, where a tap would have nowhere to resume to).
+      ...(buttons.length > 0
+        ? {
+            buttons: buttons.map((button) => ({
+              type: "postback" as const,
+              ...button,
+            })),
+          }
+        : {}),
     },
     headers: { "Idempotency-Key": idempotencyKey },
     signal,
