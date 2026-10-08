@@ -59,7 +59,7 @@ export async function uploadPostJobImage(
     apiKey: string;
     signal?: AbortSignal;
   },
-): Promise<string> {
+): Promise<{ url: string; path: string }> {
   const rawId = media.id ?? media.media_id;
   const mediaId =
     typeof rawId === "string" ? rawId : typeof rawId === "number" ? String(rawId) : undefined;
@@ -119,5 +119,16 @@ export async function uploadPostJobImage(
   const { data: urlData } = getJobsClient()
     .storage.from(JOB_IMAGES_BUCKET)
     .getPublicUrl(path);
-  return urlData.publicUrl;
+  return { url: urlData.publicUrl, path };
+}
+
+// Best-effort orphan cleanup: if the jobs insert fails after the image
+// upload succeeded, remove the file so failed posts don't pile up in
+// the bucket. Never throws — callers must still surface the original error.
+export async function deletePostJobImage(storagePath: string): Promise<void> {
+  try {
+    await getJobsClient().storage.from(JOB_IMAGES_BUCKET).remove([storagePath]);
+  } catch {
+    // Ignore: orphan cleanup must not mask the publish failure.
+  }
 }

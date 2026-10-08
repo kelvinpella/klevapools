@@ -22,6 +22,7 @@ import {
   type PostJobSubmit,
 } from "./stages/post-job/flow.js";
 import {
+  deletePostJobImage,
   normalizePostJobMedia,
   uploadPostJobImage,
 } from "./jobs/job-image-storage.js";
@@ -224,10 +225,11 @@ async function handlePostJobSubmit(
     return fail("Samahani, bajeti (Tsh) si sahihi. Andika namba, mfano 50000.");
 
   let jobImage: string | null = null;
+  let jobImagePath: string | null = null;
   const media = normalizePostJobMedia(submit.job_image);
   if (media) {
     try {
-      jobImage = await uploadPostJobImage(media, {
+      const uploaded = await uploadPostJobImage(media, {
         userPhone: job.senderPhone,
         personKey: job.personKey,
         accountId: job.accountId,
@@ -235,6 +237,8 @@ async function handlePostJobSubmit(
         signal,
       });
       signal.throwIfAborted();
+      jobImage = uploaded.url;
+      jobImagePath = uploaded.path;
     } catch (error) {
       logger.error({ err: error, eventId: job.eventId }, "Job image upload failed");
       return fail("Samahani, imeshindikana kupakia picha (jpg/png, max 5MB). Jaribu tena.");
@@ -254,8 +258,9 @@ async function handlePostJobSubmit(
       posterPhone: digits ? `+${digits}` : null,
     });
     signal.throwIfAborted();
+    const confirmedTitle = (created.title ?? title).slice(0, 80);
     await sendJobText(
-      `Asante! Tangazo lako limepokelewa: *${title.slice(0, 80)}*.`,
+      `✅ Tangazo lako limepokelewa: *${confirmedTitle}*.`,
       [{ title: "Rudi nyuma", payload: "get_started" }],
       job,
       apiKey,
@@ -273,6 +278,7 @@ async function handlePostJobSubmit(
     logger.info({ eventId: job.eventId, jobId: created.id }, "Created job posting");
   } catch (error) {
     logger.error({ err: error, eventId: job.eventId }, "Job insert failed");
+    if (jobImagePath) await deletePostJobImage(jobImagePath);
     await sendJobText(
       "Samahani, imeshindikana kutangaza kazi. Jaribu tena.",
       [{ title: "Rudi nyuma", payload: "get_started" }],
