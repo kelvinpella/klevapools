@@ -3,6 +3,9 @@ import type { JobListing, JobPage } from "./job-types.js";
 export const JOB_CARD_IMAGE_URL =
   "https://res.cloudinary.com/dpw2dpthx/image/upload/v1791342164/kazi_mpya_kvncsh.jpg";
 
+export const MORE_CARD_IMAGE_URL =
+  "https://res.cloudinary.com/dpw2dpthx/image/upload/v1791499669/gallery_image_20261007_060131-replace-text-with-tizama-kazi-zaidi-at-slightly-sm_yroyqr.jpg";
+
 export const JOB_DETAIL_PREFIX = "job_detail";
 export const JOB_APPLY_PREFIX = "job_apply";
 export const JOB_MORE_PREFIX = "job_more";
@@ -40,6 +43,13 @@ export function fitTitle(title: string | null, limit = 50): string {
   return `${text.slice(0, limit - 3)}...`;
 }
 
+export function fitArea(area: string | null | undefined, limit = 30): string {
+  const text = (area ?? "").trim().replace(/\n+/g, " ");
+  if (!text) return "";
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit - 3)}...`;
+}
+
 export function formatPostedDate(createdAt: string): string {
   const time = new Date(createdAt).getTime();
   if (Number.isNaN(time)) return "";
@@ -51,14 +61,18 @@ export function formatPostedDate(createdAt: string): string {
 }
 
 export function formatAmount(budget: number): string {
-  return `Tsh ${budget.toLocaleString("en-US")}`;
+  return `Tsh: ${budget.toLocaleString("en-US")}`;
 }
 
 export function cardBody(job: JobListing): string {
   const title = fitTitle(job.title);
   const date = formatPostedDate(job.createdAt);
+  const areaTag = fitArea(job.area) ? `📍 ${fitArea(job.area)}` : "";
+  // Area rides the date line (no room for a footer: Meta carousel cards
+  // have header + body + buttons only). Same line breaks as before.
+  const secondLine = [date, areaTag].filter(Boolean).join("   ");
   const amountLine = job.budget !== null ? formatAmount(job.budget) : "";
-  const head = date ? `*${title}*\n${date}\n\n` : `*${title}*\n\n`;
+  const head = secondLine ? `*${title}*\n${secondLine}\n\n` : `*${title}*\n\n`;
   const tail = amountLine ? `\n\n${amountLine}` : "";
   let descBudget = CARD_BODY_LIMIT - head.length - tail.length;
   let tailOut = tail;
@@ -75,8 +89,10 @@ const DETAIL_BODY_LIMIT = 1000;
 export function fullDetailBody(job: JobListing): string {
   const title = fitTitle(job.title, 80);
   const date = formatPostedDate(job.createdAt);
+  const areaTag = fitArea(job.area, 80) ? `📍 ${fitArea(job.area, 80)}` : "";
+  const secondLine = [date, areaTag].filter(Boolean).join("   ");
   const amount = job.budget !== null ? formatAmount(job.budget) : "";
-  const head = date ? `*${title}*\n${date}\n\n` : `*${title}*\n\n`;
+  const head = secondLine ? `*${title}*\n${secondLine}\n\n` : `*${title}*\n\n`;
   const tail = amount ? `\n\n${amount}` : "";
   // excerpt() can append "..." past the limit, so reserve those 3 chars.
   const descBudget = DETAIL_BODY_LIMIT - head.length - tail.length - 3;
@@ -144,7 +160,7 @@ export function parseMorePayload(payload: string | undefined): MoreCursor {
 
 function jobCard(job: JobListing): CarouselCard {
   return {
-    imageUrl: JOB_CARD_IMAGE_URL,
+    imageUrl: job.jobImage ?? JOB_CARD_IMAGE_URL,
     body: cardBody(job),
     buttons: [
       { id: detailPayload(job.id), title: DETAIL_BUTTON_TITLE },
@@ -157,7 +173,7 @@ function moreCard(origin: ListOrigin, nextOffset: number): CarouselCard {
   // Meta requires every card in a carousel to carry the same number of
   // buttons, so the navigation card carries Rudi nyuma as its second button.
   return {
-    imageUrl: JOB_CARD_IMAGE_URL,
+    imageUrl: MORE_CARD_IMAGE_URL,
     body: `*${MORE_BUTTON_TITLE}*\n\nBofya kuona kazi zinazofuata.`,
     buttons: [
       { id: morePayload(origin, nextOffset), title: MORE_BUTTON_TITLE },

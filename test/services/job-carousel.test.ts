@@ -47,7 +47,7 @@ describe("job carousel builder", () => {
       job({ title: "Mpishi", createdAt: "2026-10-07T10:00:00Z", budget: 150000 }),
     );
     assert.ok(body.startsWith("*Mpishi*\n07/10/26"));
-    assert.ok(body.includes("Tsh 150,000"));
+    assert.ok(body.includes("Tsh: 150,000"));
     assert.ok(!body.includes("Budget"));
   });
 
@@ -61,7 +61,7 @@ describe("job carousel builder", () => {
       job({ title: "Mpishi", createdAt: "2026-10-07T10:00:00Z", budget: 150000 }),
     );
     assert.ok(body.startsWith("*Mpishi*\n07/10/26"));
-    assert.ok(body.includes("Tsh 150,000"));
+    assert.ok(body.includes("Tsh: 150,000"));
     assert.ok(!body.includes("Budget"));
   });
 
@@ -70,7 +70,7 @@ describe("job carousel builder", () => {
       job({ title: "A".repeat(100), description: "B".repeat(5000), budget: 1 }),
     );
     assert.ok(body.length <= 1000);
-    assert.ok(body.endsWith("...") || body.includes("Tsh 1"));
+    assert.ok(body.endsWith("...") || body.includes("Tsh: 1"));
   });
 
   it("keeps card bodies under Meta's 160-char limit", () => {
@@ -167,8 +167,7 @@ describe("job carousel builder", () => {
     assert.ok(heading.startsWith("Hizi ndizo kazi zilizotangazwa: "));
   });
 
-  it("appends a Tizama navigation card when more pages exist", () => {
-    const jobs = Array.from({ length: 9 }, (_, i) =>
+  it("appends a Tizama navigation card when more pages exist", () => {    const jobs = Array.from({ length: 9 }, (_, i) =>
       job({ id: `job-${i}`, title: `Kazi ${i}` }),
     );
     const view = buildJobListView(
@@ -188,5 +187,38 @@ describe("job carousel builder", () => {
       first.buttons.map((button) => button.title),
       ["Soma zaidi", "Omba"],
     );
+  });
+
+  it("puts the area on the date line with a pin and no Eneo word", () => {
+    const body = cardBody(
+      job({ title: "Mpishi", createdAt: "2026-10-07T10:00:00Z", area: "Mbezi" }),
+    );
+    assert.ok(body.includes("07/10/26   📍 Mbezi"));
+    assert.ok(!body.includes("Eneo"));
+  });
+
+  it("truncates long areas but keeps card bodies under 160 chars", () => {
+    const body = cardBody(
+      job({
+        title: "A".repeat(80),
+        description: "B".repeat(500),
+        area: "C".repeat(80),
+        budget: 123456789,
+      }),
+    );
+    assert.ok(body.length <= 160);
+    assert.ok(body.includes("📍 "));
+  });
+
+  it("uses the job image per card with placeholder fallback", () => {
+    const jobs = [
+      job({ id: "job-img", jobImage: "https://example.com/a.jpg" }),
+      job({ id: "job-plain", jobImage: null }),
+    ];
+    const view = buildJobListView({ jobs, hasMore: false }, { kind: "mixed" }, 0, "H");
+    assert.equal(view.kind, "carousel");
+    if (view.kind !== "carousel") return;
+    assert.equal(view.cards[0].imageUrl, "https://example.com/a.jpg");
+    assert.ok(view.cards[1].imageUrl.includes("cloudinary"));
   });
 });

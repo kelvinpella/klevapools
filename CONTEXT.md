@@ -23,3 +23,7 @@ _Avoid_: form, modal
 **Job**:
 A piece of work in the marketplace with a title, description, area, budget, optional image, and skills.
 _Avoid_: gig, posting
+
+**Review**:
+Admin approval a Job needs before broadcast. Unreviewed Jobs stay invisible in every listing.
+_Avoid_: approve, verify, moderate
