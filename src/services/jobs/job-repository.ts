@@ -21,8 +21,12 @@ type JobRow = {
 };
 
 export type JobsDataSource = {
-  listJobs: (offset: number) => Promise<JobPage>;
-  searchJobs: (keyword: string, offset: number) => Promise<JobPage>;
+  listJobs: (offset: number, opts?: { excludePhone?: string | null }) => Promise<JobPage>;
+  searchJobs: (
+    keyword: string,
+    offset: number,
+    opts?: { excludePhone?: string | null },
+  ) => Promise<JobPage>;
   getJobById: (id: string) => Promise<JobListing | null>;
   createJob?: (input: {
     title: string;
@@ -61,14 +65,30 @@ function toPage(rows: JobRow[]): JobPage {
   return { jobs: rows.slice(0, JOB_PAGE_SIZE).map(toListing), hasMore };
 }
 
-function baseQuery(client: SupabaseClient, offset: number) {
-  return client
+function baseQuery(
+  client: SupabaseClient,
+  offset: number,
+  opts?: { excludePhone?: string | null },
+) {
+  const digits = (opts?.excludePhone ?? "").replace(/\D/g, "");
+  let query = client
     .from("jobs")
     .select(
       "id,created_at,title,description,area,budget,job_image,reviewed,skills,created_by_phone",
     )
     // Admin review gate (issue #6): only approved jobs are broadcast.
-    .eq("reviewed", true)
+    .eq("reviewed", true);
+  if (digits) {
+    // Listings never show the viewer's own posts: only what others posted.
+    // Both stored shapes are excluded (+E.164 for new rows, digits-only for
+    // legacy rows) inside one AND: a flat OR would always pass since the own
+    // row differs from at least one shape. The is.null branch keeps
+    // NULL-poster rows visible since plain neq drops NULLs.
+    query = query.or(
+      `created_by_phone.is.null,and(created_by_phone.neq.+${digits},created_by_phone.neq.${digits})`,
+    );
+  }
+  return query
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .range(offset, offset + JOB_FETCH_SIZE - 1);
@@ -80,12 +100,14 @@ function sanitizeKeyword(keyword: string): string {
 
 export async function listJobs(
   offset: number,
+  opts?: { excludePhone?: string | null },
   client?: SupabaseClient,
 ): Promise<JobPage> {
-  if (dataSourceOverride) return dataSourceOverride.listJobs(offset);
+  if (dataSourceOverride) return dataSourceOverride.listJobs(offset, opts);
   const { data, error } = await baseQuery(
     client ?? getJobsClient(),
     Math.max(0, offset),
+    opts,
   );
   if (error) throw new Error("Job list query failed", { cause: error });
   return toPage((data ?? []) as JobRow[]);
@@ -94,17 +116,18 @@ export async function listJobs(
 export async function searchJobs(
   keyword: string,
   offset: string | number,
+  opts?: { excludePhone?: string | null },
   client?: SupabaseClient,
 ): Promise<JobPage> {
   const clean = sanitizeKeyword(keyword);
   const start = Math.max(0, Number(offset) || 0);
-  if (dataSourceOverride) return dataSourceOverride.searchJobs(keyword, start);
+  if (dataSourceOverride) return dataSourceOverride.searchJobs(keyword, start, opts);
   if (!clean) return { jobs: [], hasMore: false };
   const pattern = `%${clean}%`;
   const textOnly = `title.ilike.${pattern},description.ilike.${pattern}`;
   const withSkills = `${textOnly},skills.cs.{${clean}}`;
   const run = async (orFilter: string) =>
-    baseQuery(client ?? getJobsClient(), start).or(orFilter);
+    baseQuery(client ?? getJobsClient(), start, opts).or(orFilter);
   const first = await run(withSkills);
   if (!first.error) return toPage((first.data ?? []) as JobRow[]);
   // Array-operator inside OR can be rejected on some PostgREST versions;

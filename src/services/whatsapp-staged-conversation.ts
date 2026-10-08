@@ -128,7 +128,7 @@ async function sendJobPage(
       apiKey,
       stageIdempotencyKey(ctx.state.stage, `${eventId}:single:${view.job.id}`),
       signal,
-      { imageUrl: JOB_CARD_IMAGE_URL },
+      { imageUrl: view.job.jobImage ?? JOB_CARD_IMAGE_URL },
     );
     ctx.state.selectedJobId = view.job.id;
     logger.info({ eventId, jobId: view.job.id }, "Sent single job message");
@@ -259,23 +259,23 @@ async function handlePostJobSubmit(
     });
     signal.throwIfAborted();
     const confirmedTitle = (created.title ?? title).slice(0, 80);
+    // Terminal stage like job_apply: plain-text confirmation with no buttons,
+    // then clear state so the next message starts a fresh get-started menu.
     await sendJobText(
       `✅ Tumepokea tangazo lako: *${confirmedTitle}*. Litachapishwa baada ya ukaguzi.`,
-      [{ title: "Rudi nyuma", payload: "get_started" }],
+      [],
       job,
       apiKey,
       stageIdempotencyKey("tangaza_kazi", `${job.eventId}:created:${created.id}`),
       signal,
     );
     signal.throwIfAborted();
-    state.stage = "get_started";
-    state.promptSent = true;
-    await pushResponse(redis, key, state, {
-      stage: "tangaza_kazi",
-      response: `Tangaza: ${title.slice(0, 80)}`,
-      eventId: job.eventId,
-    });
     logger.info({ eventId: job.eventId, jobId: created.id }, "Created job posting");
+    await clearConversationState(redis, key);
+    logger.info(
+      { eventId: job.eventId, jobId: created.id },
+      "Cleared conversation state after job posting",
+    );
   } catch (error) {
     logger.error({ err: error, eventId: job.eventId }, "Job insert failed");
     if (jobImagePath) await deletePostJobImage(jobImagePath);
@@ -373,7 +373,9 @@ export async function handleStagedConversation({
       return;
     }
     try {
-      const page = await searchJobs(keyword, 0);
+      const page = await searchJobs(keyword, 0, {
+        excludePhone: job.senderPhone,
+      });
       signal.throwIfAborted();
       state.listKeyword = keyword;
       state.listOffset = 0;
@@ -447,6 +449,7 @@ export async function handleStagedConversation({
           apiKey,
           stageIdempotencyKey("job_detail", `${job.eventId}:${listing.id}`),
           signal,
+          { imageUrl: listing.jobImage ?? JOB_CARD_IMAGE_URL },
         );
         signal.throwIfAborted();
         state.stage = "job_detail";
@@ -502,8 +505,10 @@ export async function handleStagedConversation({
     try {
       const page =
         origin.kind === "search"
-          ? await searchJobs(origin.keyword, more.offset)
-          : await listJobs(more.offset);
+          ? await searchJobs(origin.keyword, more.offset, {
+              excludePhone: job.senderPhone,
+            })
+          : await listJobs(more.offset, { excludePhone: job.senderPhone });
       signal.throwIfAborted();
       state.listOffset = more.offset;
       if (origin.kind === "search") state.listKeyword = origin.keyword;
@@ -545,7 +550,7 @@ export async function handleStagedConversation({
     // Kazi mchanganyiko entry renders the live job list carousel.
     if (target === "tafuta_kazi_mixed") {
       try {
-        const page = await listJobs(0);
+        const page = await listJobs(0, { excludePhone: job.senderPhone });
         signal.throwIfAborted();
         state.stage = target;
         state.promptSent = true;
@@ -635,6 +640,9 @@ export async function handleStagedConversation({
           apiKey,
           stageIdempotencyKey(state.stage, job.eventId),
           signal,
+          state.stage === "job_detail"
+            ? { imageUrl: listing.jobImage ?? JOB_CARD_IMAGE_URL }
+            : undefined,
         );
         signal.throwIfAborted();
         await saveConversationState(redis, key, state);

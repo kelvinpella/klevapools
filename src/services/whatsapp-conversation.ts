@@ -7,6 +7,7 @@ import {
 } from "./whatsapp-conversation-state.js";
 import { handleNewConversation } from "./whatsapp-new-conversation.js";
 import { handleStagedConversation } from "./whatsapp-staged-conversation.js";
+import { isStageId } from "./whatsapp-stages.js";
 import { parseJobPayload, parseMorePayload } from "./jobs/job-carousel.js";
 import { sendTypingIndicator } from "./zernio-typing-indicator.js";
 
@@ -47,6 +48,30 @@ export async function processWhatsappMessage(
         { eventId: job.eventId },
         "Handling job tap without stored state",
       );
+    await handleStagedConversation({
+      job,
+      redis,
+      apiKey,
+      logger,
+      signal,
+      key,
+      state: {
+        stage: "tafuta_kazi",
+        promptSent: true,
+        promptEventId: job.eventId,
+        responses: [],
+      },
+    });
+      return;
+    }
+    // Old message buttons after a cleared stage (tangaza close, tafuta
+    // apply-close alike): a Stage tap always enters the requested stage, even
+    // with no stored state. Plain text (no tap) still starts get-started below.
+    if (job.interactiveId && isStageId(job.interactiveId)) {
+      logger.info(
+        { eventId: job.eventId, stage: job.interactiveId },
+        "Entering requested stage without stored state",
+      );
       await handleStagedConversation({
         job,
         redis,
@@ -55,7 +80,7 @@ export async function processWhatsappMessage(
         signal,
         key,
         state: {
-          stage: "tafuta_kazi",
+          stage: job.interactiveId,
           promptSent: true,
           promptEventId: job.eventId,
           responses: [],
