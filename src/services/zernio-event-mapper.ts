@@ -43,6 +43,7 @@ export function toWhatsappMessageJob(
     personKey,
     accountId,
     conversationId,
+    senderPhone: phoneNumber || undefined,
     interactiveId: tapId,
     interactiveType:
       typeof interactiveType === "string" ? interactiveType : undefined,

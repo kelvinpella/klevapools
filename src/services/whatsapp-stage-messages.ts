@@ -2,6 +2,7 @@ import { Zernio } from "@zernio/node";
 import type { WhatsappIncomingMessageJob } from "../queues/zernio-events.js";
 import { STAGE_MESSAGES, type StageId } from "./whatsapp-stages.js";
 import { getFindJobSearchFlowId } from "./stages/find-job/flow.js";
+import { getPostJobFlowId } from "./stages/post-job/flow.js";
 import type { CarouselCard } from "./jobs/job-carousel.js";
 
 export async function sendStageMessage(
@@ -10,12 +11,16 @@ export async function sendStageMessage(
   apiKey: string,
   idempotencyKey: string,
   signal: AbortSignal,
+  opts?: { prefill?: Record<string, unknown> },
 ): Promise<void> {
   const definition = STAGE_MESSAGES[stage];
   const zernio = new Zernio({ apiKey });
 
   if (definition.flow) {
-    const flowId = getFindJobSearchFlowId();
+    const flowId =
+      stage === "tangaza_kazi"
+        ? getPostJobFlowId()
+        : getFindJobSearchFlowId();
     if (flowId) {
       try {
         const { error } = await zernio.messages.sendInboxMessage({
@@ -33,7 +38,12 @@ export async function sendStageMessage(
                   flow_id: flowId,
                   flow_cta: definition.flow.cta,
                   flow_action: "navigate",
-                  flow_action_payload: { screen: definition.flow.screen },
+                  flow_action_payload: {
+                    screen: definition.flow.screen,
+                    ...(opts?.prefill
+                      ? { data: opts.prefill }
+                      : {}),
+                  },
                   mode: "draft",
                 },
               },

@@ -506,7 +506,7 @@ describe("handleStagedConversation transitions", () => {
     });
 
     assert.equal(state.stage, "tangaza_kazi");
-    assert.equal(fetchCalls[0].body["message"], "[Placeholder] Tangaza kazi message");
+    assert.equal(fetchCalls[0].body["message"], REGISTRY["tangaza_kazi"].body);
   });
 
   it("back button returns to get_started and re-sends the menu", async () => {

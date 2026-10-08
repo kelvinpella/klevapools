@@ -18,6 +18,16 @@ import {
 } from "./whatsapp-stage-messages.js";
 import { parseFindJobSearchResponse } from "./stages/find-job/flow.js";
 import {
+  parsePostJobResponse,
+  type PostJobSubmit,
+} from "./stages/post-job/flow.js";
+import {
+  deletePostJobImage,
+  normalizePostJobMedia,
+  uploadPostJobImage,
+} from "./jobs/job-image-storage.js";
+import {
+  createJob,
   getJobById,
   listJobs,
   searchJobs,
@@ -138,6 +148,159 @@ async function sendJobPage(
   );
 }
 
+function resolveFlowPayload(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof (parsed as Record<string, unknown>)["response_json"] === "object"
+    ) {
+      return (parsed as Record<string, unknown>)["response_json"];
+    }
+    return parsed;
+  } catch {
+    return raw;
+  }
+}
+
+async function handlePostJobSubmit(
+  ctx: StagedConversationContext,
+  raw: unknown,
+): Promise<void> {
+  const { job, apiKey, logger, signal, redis, key, state } = ctx;
+  const submit: PostJobSubmit = parsePostJobResponse(resolveFlowPayload(raw));
+  const title = typeof submit.title === "string" ? submit.title.trim() : "";
+  const description =
+    typeof submit.description === "string" ? submit.description.trim() : "";
+  const area = typeof submit.area === "string" ? submit.area.trim() : "";
+  const budgetRaw =
+    typeof submit.budget === "string" || typeof submit.budget === "number"
+      ? String(submit.budget).trim()
+      : "";
+  const budget = Number(budgetRaw);
+  logger.info(
+    {
+      eventId: job.eventId,
+      stage: state.stage,
+      hasImage: submit.job_image != null,
+      flowResponse: raw,
+    },
+    "Received Tangaza kazi Flow response",
+  );
+
+  const prefill = {
+    init_values: { title, description, area, budget: budgetRaw },
+  };
+  const fail = async (reason: string): Promise<void> => {
+    await sendJobText(
+      reason,
+      [{ title: "Rudi nyuma", payload: "get_started" }],
+      job,
+      apiKey,
+      stageIdempotencyKey(state.stage, `${job.eventId}:invalid`),
+      signal,
+    );
+    signal.throwIfAborted();
+    await sendStageMessage(
+      "tangaza_kazi",
+      job,
+      apiKey,
+      stageIdempotencyKey(state.stage, `${job.eventId}:resend`),
+      signal,
+      { prefill },
+    );
+    signal.throwIfAborted();
+    await saveConversationState(redis, key, state);
+  };
+
+  if (!title || title.length > 80)
+    return fail("Samahani, jina la kazi haliko sahihi (herufi 1-80). Tafadhali jaribu tena.");
+  if (!description || description.length > 500)
+    return fail("Samahani, maelezo hayako sahihi (herufi 1-500). Tafadhali jaribu tena.");
+  if (!area || area.length > 80)
+    return fail("Samahani, eneo haliko sahihi (herufi 1-80). Tafadhali jaribu tena.");
+  if (!budgetRaw || !Number.isFinite(budget) || budget <= 0 || budget > 999999999)
+    return fail("Samahani, bajeti (Tsh) si sahihi. Andika namba, mfano 50000.");
+
+  let jobImage: string | null = null;
+  let jobImagePath: string | null = null;
+  const media = normalizePostJobMedia(submit.job_image);
+  if (media) {
+    try {
+      const uploaded = await uploadPostJobImage(media, {
+        userPhone: job.senderPhone,
+        personKey: job.personKey,
+        accountId: job.accountId,
+        apiKey,
+        signal,
+      });
+      signal.throwIfAborted();
+      jobImage = uploaded.url;
+      jobImagePath = uploaded.path;
+    } catch (error) {
+      logger.error({ err: error, eventId: job.eventId }, "Job image upload failed");
+      return fail("Samahani, imeshindikana kupakia picha (jpg/png, max 5MB). Jaribu tena.");
+    }
+  }
+
+  try {
+    const digits = (job.senderPhone ?? "").replace(/\D/g, "");
+    const created = await createJob({
+      title: title.slice(0, 80),
+      description: description.slice(0, 500),
+      area: area.slice(0, 80),
+      budget: Math.floor(budget),
+      jobImage,
+      // jobs.created_by_phone has an E.164 check constraint: senderPhone
+      // arrives digits-only from the mapper, so re-add the leading +.
+      posterPhone: digits ? `+${digits}` : null,
+    });
+    signal.throwIfAborted();
+    const confirmedTitle = (created.title ?? title).slice(0, 80);
+    await sendJobText(
+      `✅ Tumepokea tangazo lako: *${confirmedTitle}*. Litachapishwa baada ya ukaguzi.`,
+      [{ title: "Rudi nyuma", payload: "get_started" }],
+      job,
+      apiKey,
+      stageIdempotencyKey("tangaza_kazi", `${job.eventId}:created:${created.id}`),
+      signal,
+    );
+    signal.throwIfAborted();
+    state.stage = "get_started";
+    state.promptSent = true;
+    await pushResponse(redis, key, state, {
+      stage: "tangaza_kazi",
+      response: `Tangaza: ${title.slice(0, 80)}`,
+      eventId: job.eventId,
+    });
+    logger.info({ eventId: job.eventId, jobId: created.id }, "Created job posting");
+  } catch (error) {
+    logger.error({ err: error, eventId: job.eventId }, "Job insert failed");
+    if (jobImagePath) await deletePostJobImage(jobImagePath);
+    await sendJobText(
+      "Samahani, imeshindikana kutangaza kazi. Jaribu tena.",
+      [{ title: "Rudi nyuma", payload: "get_started" }],
+      job,
+      apiKey,
+      stageIdempotencyKey(state.stage, `${job.eventId}:error`),
+      signal,
+    );
+    signal.throwIfAborted();
+    await sendStageMessage(
+      "tangaza_kazi",
+      job,
+      apiKey,
+      stageIdempotencyKey(state.stage, `${job.eventId}:resend`),
+      signal,
+      { prefill },
+    );
+    signal.throwIfAborted();
+    await saveConversationState(redis, key, state);
+  }
+}
+
 export async function handleStagedConversation({
   job,
   redis,
@@ -176,8 +339,12 @@ export async function handleStagedConversation({
     return;
   }
 
-  // Flow submission (nfm_reply): search jobs by keyword, send carousel.
+  // Flow submission (nfm_reply): tangaza_kazi posts a job, otherwise search.
   if (job.interactiveType === "nfm_reply") {
+    if (state.stage === "tangaza_kazi") {
+      await handlePostJobSubmit(ctx, job.flowResponseData ?? job.flowResponseJson);
+      return;
+    }
     const parsed = parseFindJobSearchResponse(
       job.flowResponseData ?? job.flowResponseJson,
     );
