@@ -12,7 +12,9 @@ type JobRow = {
   created_at: string;
   title: string | null;
   description: string | null;
+  area: string | null;
   budget: number | null;
+  job_image: string | null;
   skills: string[] | null;
   created_by_phone: string | null;
 };
@@ -21,6 +23,14 @@ export type JobsDataSource = {
   listJobs: (offset: number) => Promise<JobPage>;
   searchJobs: (keyword: string, offset: number) => Promise<JobPage>;
   getJobById: (id: string) => Promise<JobListing | null>;
+  createJob?: (input: {
+    title: string;
+    description: string;
+    area: string;
+    budget: number;
+    jobImage: string | null;
+    posterPhone: string | null;
+  }) => Promise<JobListing>;
 };
 
 let dataSourceOverride: JobsDataSource | null = null;
@@ -36,7 +46,9 @@ function toListing(row: JobRow): JobListing {
     createdAt: row.created_at,
     title: row.title,
     description: row.description,
+    area: row.area ?? null,
     budget: row.budget,
+    jobImage: row.job_image ?? null,
     skills: row.skills ?? [],
     posterPhone: row.created_by_phone,
   };
@@ -50,7 +62,9 @@ function toPage(rows: JobRow[]): JobPage {
 function baseQuery(client: SupabaseClient, offset: number) {
   return client
     .from("jobs")
-    .select("id,created_at,title,description,budget,skills,created_by_phone")
+    .select(
+      "id,created_at,title,description,area,budget,job_image,skills,created_by_phone",
+    )
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .range(offset, offset + JOB_FETCH_SIZE - 1);
@@ -105,9 +119,42 @@ export async function getJobById(
   if (dataSourceOverride) return dataSourceOverride.getJobById(id);
   const { data, error } = await (client ?? getJobsClient())
     .from("jobs")
-    .select("id,created_at,title,description,budget,skills,created_by_phone")
+    .select(
+      "id,created_at,title,description,area,budget,job_image,skills,created_by_phone",
+    )
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error("Job lookup failed", { cause: error });
   return data ? toListing(data as JobRow) : null;
+}
+
+export async function createJob(
+  input: {
+    title: string;
+    description: string;
+    area: string;
+    budget: number;
+    jobImage: string | null;
+    posterPhone: string | null;
+  },
+  client?: SupabaseClient,
+): Promise<JobListing> {
+  if (dataSourceOverride?.createJob)
+    return dataSourceOverride.createJob(input);
+  const { data, error } = await (client ?? getJobsClient())
+    .from("jobs")
+    .insert({
+      title: input.title,
+      description: input.description,
+      area: input.area,
+      budget: input.budget,
+      job_image: input.jobImage,
+      created_by_phone: input.posterPhone,
+    })
+    .select(
+      "id,created_at,title,description,area,budget,job_image,skills,created_by_phone",
+    )
+    .single();
+  if (error || !data) throw new Error("Job insert failed", { cause: error });
+  return toListing(data as JobRow);
 }

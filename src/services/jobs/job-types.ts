@@ -3,7 +3,9 @@ export type JobListing = {
   createdAt: string;
   title: string | null;
   description: string | null;
+  area: string | null;
   budget: number | null;
+  jobImage: string | null;
   skills: string[];
   posterPhone: string | null;
 };

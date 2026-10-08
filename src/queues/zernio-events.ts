@@ -17,6 +17,7 @@ export type WhatsappIncomingMessageJob = {
   personKey: string;
   accountId: string;
   conversationId: string;
+  senderPhone?: string;
   interactiveId?: string;
   interactiveType?: string;
   flowResponseData?: Record<string, unknown>;

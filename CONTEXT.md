@@ -21,5 +21,5 @@ A WhatsApp native form (DRAFT for testing, never published by this codebase) ope
 _Avoid_: form, modal
 
 **Job**:
-A piece of work in the marketplace with a title, description, budget, and skills.
+A piece of work in the marketplace with a title, description, area, budget, optional image, and skills.
 _Avoid_: gig, posting

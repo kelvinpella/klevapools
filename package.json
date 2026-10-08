@@ -11,6 +11,7 @@
     "dev:redis": "redis-server --dir /tmp",
     "redis:clear": "node --env-file-if-exists=.env --import tsx src/scripts/clear-redis.ts",
     "flow:create-find-job": "node --env-file-if-exists=.env --import tsx src/scripts/create-find-job-flow.ts",
+    "flow:create-tangaza-job": "node --env-file-if-exists=.env --import tsx src/scripts/create-tangaza-job-flow.ts",
     "build": "tsc",
     "start": "node dist/app.js",
     "start:worker": "node dist/worker.js",
@@ -24,6 +25,7 @@
     "bullmq": "^6.3.11",
     "fastify": "^5.12.4",
     "fastify-plugin": "^6.0.0",
+    "heic-convert": "^2.1.0",
     "ioredis": "^6.0.0"
   },
   "devDependencies": {
