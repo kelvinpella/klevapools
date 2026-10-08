@@ -15,6 +15,7 @@ type JobRow = {
   area: string | null;
   budget: number | null;
   job_image: string | null;
+  reviewed: boolean | null;
   skills: string[] | null;
   created_by_phone: string | null;
 };
@@ -49,6 +50,7 @@ function toListing(row: JobRow): JobListing {
     area: row.area ?? null,
     budget: row.budget,
     jobImage: row.job_image ?? null,
+    reviewed: row.reviewed ?? null,
     skills: row.skills ?? [],
     posterPhone: row.created_by_phone,
   };
@@ -63,8 +65,10 @@ function baseQuery(client: SupabaseClient, offset: number) {
   return client
     .from("jobs")
     .select(
-      "id,created_at,title,description,area,budget,job_image,skills,created_by_phone",
+      "id,created_at,title,description,area,budget,job_image,reviewed,skills,created_by_phone",
     )
+    // Admin review gate (issue #6): only approved jobs are broadcast.
+    .eq("reviewed", true)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .range(offset, offset + JOB_FETCH_SIZE - 1);
@@ -120,9 +124,10 @@ export async function getJobById(
   const { data, error } = await (client ?? getJobsClient())
     .from("jobs")
     .select(
-      "id,created_at,title,description,area,budget,job_image,skills,created_by_phone",
+      "id,created_at,title,description,area,budget,job_image,reviewed,skills,created_by_phone",
     )
     .eq("id", id)
+    .eq("reviewed", true)
     .maybeSingle();
   if (error) throw new Error("Job lookup failed", { cause: error });
   return data ? toListing(data as JobRow) : null;
@@ -152,7 +157,7 @@ export async function createJob(
       created_by_phone: input.posterPhone,
     })
     .select(
-      "id,created_at,title,description,area,budget,job_image,skills,created_by_phone",
+      "id,created_at,title,description,area,budget,job_image,reviewed,skills,created_by_phone",
     )
     .single();
   if (error || !data) throw new Error("Job insert failed", { cause: error });

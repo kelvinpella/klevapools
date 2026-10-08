@@ -260,7 +260,7 @@ async function handlePostJobSubmit(
     signal.throwIfAborted();
     const confirmedTitle = (created.title ?? title).slice(0, 80);
     await sendJobText(
-      `✅ Tangazo lako limepokelewa: *${confirmedTitle}*.`,
+      `✅ Tumepokea tangazo lako: *${confirmedTitle}*. Litachapishwa baada ya ukaguzi.`,
       [{ title: "Rudi nyuma", payload: "get_started" }],
       job,
       apiKey,

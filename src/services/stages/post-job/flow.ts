@@ -4,7 +4,10 @@ import { Zernio } from "@zernio/node";
 // Lifecycle: DRAFT -> upload JSON -> send with draft:true for testing.
 // Never published by this codebase.
 // Screen 1 (DETAILS): title, description, area, budget. Button: Endelea.
-// Screen 2 (PICHA): optional single PhotoPicker. Button: Tangaza.
+// Screen 2 (PICHA): optional single PhotoPicker, camera + gallery. Gallery
+// HEIC never leaves the phone in complete-mode Flows (silent client block,
+// see issue #5), so the description warns users to switch to JPG/PNG.
+// Button: Tangaza.
 export const POST_JOB_FLOW_NAME = "tangaza_kazi";
 export const POST_JOB_FLOW_CATEGORIES = ["SURVEY"] as const;
 export const POST_JOB_FLOW_SCREEN = "DETAILS";
@@ -130,8 +133,7 @@ export const POST_JOB_FLOW_JSON = {
                 type: "PhotoPicker",
                 name: "job_image",
                 label: "Weka picha ya kazi",
-                description:
-                  "Mfano: picha ya eneo la kusafishwa. JPG/PNG, max 5MB. iPhone (HEIC): Settings > Camera > Formats > Most Compatible",
+                description: "Mfano: picha ya eneo la kusafishwa. Ukiona picha .HEIC, badili. Weka JPG/PNG",
                 ["photo-source"]: "camera_gallery",
                 ["max-file-size-kb"]: 5120,
                 ["min-uploaded-photos"]: 0,
