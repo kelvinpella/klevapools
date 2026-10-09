@@ -72,9 +72,10 @@ function responseLabel(stage: ConversationState["stage"]): string {
   if (stage === "tafuta_kazi_search") return "Andika jina la kazi";
   if (stage === "tafuta_kazi_mixed") return "Kazi mpya mchanganyiko";
   if (stage === "tangaza_kazi") return "Tangaza kazi";
+  if (stage === "vigezo_na_masharti") return "Vigezo na Masharti";
   if (stage === "job_detail") return "Soma zaidi";
   if (stage === "job_apply") return "Omba";
-  return "Taarifa zaidi";
+  return "Vigezo na Masharti";
 }
 
 function now(): string {
@@ -595,6 +596,27 @@ export async function handleStagedConversation({
       }
       return;
     }
+    // Terms Stage is terminal like Omba / Tangaza submit: respond with the
+    // T&C, then clear state so the next message starts a fresh get-started
+    // menu. The Rudi nyuma Option still works statelessly
+    // (processWhatsappMessage enters any requested Stage with no stored
+    // state), as do taps on other old messages.
+    if (target === "vigezo_na_masharti") {
+      await sendStageMessage(
+        target,
+        job,
+        apiKey,
+        stageIdempotencyKey(target, job.eventId),
+        signal,
+      );
+      signal.throwIfAborted();
+      await clearConversationState(redis, key);
+      logger.info(
+        { eventId: job.eventId, stage: target },
+        "Cleared conversation state after terms stage",
+      );
+      return;
+    }
     await sendStageMessage(
       target,
       job,
@@ -655,6 +677,24 @@ export async function handleStagedConversation({
     } catch (error) {
       logger.error({ err: error, eventId: job.eventId }, "Job replay failed");
     }
+  }
+  // Terms Stage is terminal: a lingering saved terms stage replays the T&C
+  // once, then clears so the next message starts fresh (same as selection).
+  if (state.stage === "vigezo_na_masharti") {
+    await sendStageMessage(
+      state.stage,
+      job,
+      apiKey,
+      stageIdempotencyKey(state.stage, job.eventId),
+      signal,
+    );
+    signal.throwIfAborted();
+    await clearConversationState(redis, key);
+    logger.info(
+      { eventId: job.eventId, stage: state.stage },
+      "Cleared conversation state after terms replay",
+    );
+    return;
   }
   // All outbound is through defined interactive messages.
   await sendStageMessage(

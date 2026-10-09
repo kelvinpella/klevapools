@@ -10,7 +10,7 @@ export const FIND_JOB_MESSAGE: StageMessage = {
     "",
     "1. Bofya *Andika jina la kazi* kama wahitaji kutafuta(search) kwa kuandika jina la kazi unayoitaka",
     "",
-    "2. Bofya *Kazi mchanganyiko* kama wahitaji kuona kazi mchanganyiko zote zilizotangazwa hivi karibuni.",
+    "2. Bofya *Kazi mpya mchanganyiko* kama wahitaji kuona kazi mchanganyiko zote zilizotangazwa hivi karibuni.",
     "",
     "3. Bofya *Rudi nyuma* kama wahitaji kurudi kwenye menyu kuu.",
   ].join("\n"),

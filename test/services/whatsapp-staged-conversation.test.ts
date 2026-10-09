@@ -18,7 +18,7 @@ const EXPECTED_STAGES: ConversationStage[] = [
   "tafuta_kazi_search",
   "tafuta_kazi_mixed",
   "tangaza_kazi",
-  "taarifa_zaidi",
+  "vigezo_na_masharti",
   "job_detail",
   "job_apply",
 ];
@@ -75,7 +75,7 @@ describe("STAGE_MESSAGES map", () => {
 
   it("gives get_started three option buttons that are themselves stages", () => {
     const payloads = REGISTRY["get_started"].buttons.map((b) => b.payload);
-    assert.deepEqual(new Set(payloads), new Set(["tafuta_kazi", "tangaza_kazi", "taarifa_zaidi"]));
+    assert.deepEqual(new Set(payloads), new Set(["tafuta_kazi", "tangaza_kazi", "vigezo_na_masharti"]));
   });
 
   it("renders the get-started menu with banner and formatted options", () => {
@@ -524,5 +524,52 @@ describe("handleStagedConversation transitions", () => {
 
     assert.equal(state.stage, "get_started");
     assert.equal(fetchCalls[0].body["message"], REGISTRY["get_started"].body);
+  });
+
+  it("selecting vigezo_na_masharti sends the terms and clears the stage", async () => {
+    const redis = makeRedis();
+    redis.store.set("k", JSON.stringify(makeState({ stage: "get_started" })));
+    const state = makeState({ stage: "get_started" });
+    await handleStagedConversation({
+      job: makeJob({ eventId: "evt-terms", interactiveId: "vigezo_na_masharti" }),
+      redis: redis as never,
+      apiKey: "key",
+      logger: silentLogger,
+      signal: AbortSignal.timeout(5000),
+      key: "k",
+      state,
+    });
+
+    assert.equal(fetchCalls.length, 1);
+    assert.ok(
+      (fetchCalls[0].body["message"] as string).includes("*Vigezo na Masharti ya Naja*"),
+    );
+    const buttons = fetchCalls[0].body["buttons"] as { title: string }[];
+    assert.deepEqual(
+      buttons.map((b) => b.title),
+      ["Rudi nyuma"],
+    );
+    assert.equal(redis.store.get("k"), undefined);
+  });
+
+  it("tapping Vigezo on an old message without stored state still enters the terms stage", async () => {
+    const redis = makeRedis();
+    await processWhatsappMessage(
+      makeJob({
+        eventId: "evt-old-terms",
+        interactiveId: "vigezo_na_masharti",
+      }),
+      redis as never,
+      "key",
+      silentLogger,
+      AbortSignal.timeout(5000),
+    );
+
+    assert.ok(fetchCalls.length >= 1);
+    assert.ok(
+      (fetchCalls[fetchCalls.length - 1].body["message"] as string).includes(
+        "*Vigezo na Masharti ya Naja*",
+      ),
+    );
   });
 });

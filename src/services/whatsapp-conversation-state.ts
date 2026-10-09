@@ -73,12 +73,6 @@ export async function loadConversationState(
       ) {
         return { ...parsed, stage: "tangaza_kazi" };
       }
-      if (
-        last.response === "Taarifa zaidi" ||
-        last.response === "taarifa_zaidi"
-      ) {
-        return { ...parsed, stage: "taarifa_zaidi" };
-      }
       return { ...parsed, stage: "get_started" };
     }
     if ((parsed.stage as string) === "get_started_complete") {

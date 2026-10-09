@@ -8,7 +8,7 @@ export const GET_STARTED_MESSAGE: StageMessage = {
     "",
     "2. Bofya *Tangaza kazi* kama wahitaji kuweka tangazo lako la kazi.",
     "",
-    "3. Bofya *Taarifa zaidi* kama wahitaji kufahamu kuhusu Naja na huduma zake.",
+    "3. Bofya *Vigezo na Masharti* kama wahitaji kufahamu sheria za kutumia Naja.",
   ].join("\n"),
   // Banner verified 2026-10-07: 200 + image/jpeg. If this URL ever dies,
   // Meta fails delivery async (131053) with no send-time error, so verify
@@ -19,6 +19,6 @@ export const GET_STARTED_MESSAGE: StageMessage = {
   buttons: [
     { type: "postback", title: "Tafuta kazi", payload: "tafuta_kazi" },
     { type: "postback", title: "Tangaza kazi", payload: "tangaza_kazi" },
-    { type: "postback", title: "Taarifa zaidi", payload: "taarifa_zaidi" },
+    { type: "postback", title: "Vigezo na Masharti", payload: "vigezo_na_masharti" },
   ],
 };
