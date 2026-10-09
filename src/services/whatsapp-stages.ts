@@ -3,7 +3,7 @@ import { FIND_JOB_MESSAGE } from "./stages/find-job/message.js";
 import { FIND_JOB_SEARCH_MESSAGE } from "./stages/find-job/search.js";
 import { FIND_JOB_MIXED_MESSAGE } from "./stages/find-job/mixed.js";
 import { POST_JOB_MESSAGE } from "./stages/post-job/message.js";
-import { MORE_INFO_MESSAGE } from "./stages/more-info/message.js";
+import { TERMS_MESSAGE } from "./stages/terms/message.js";
 import { JOB_DETAIL_MESSAGE } from "./stages/job-detail/message.js";
 import { JOB_APPLY_MESSAGE } from "./stages/job-apply/message.js";
 
@@ -22,7 +22,7 @@ export const STAGE_MESSAGES: Record<StageId, StageMessage> = {
   tafuta_kazi_search: FIND_JOB_SEARCH_MESSAGE,
   tafuta_kazi_mixed: FIND_JOB_MIXED_MESSAGE,
   tangaza_kazi: POST_JOB_MESSAGE,
-  taarifa_zaidi: MORE_INFO_MESSAGE,
+  vigezo_na_masharti: TERMS_MESSAGE,
   job_detail: JOB_DETAIL_MESSAGE,
   job_apply: JOB_APPLY_MESSAGE,
 };
@@ -33,7 +33,7 @@ const STAGE_IDS: ReadonlySet<string> = new Set([
   "tafuta_kazi_search",
   "tafuta_kazi_mixed",
   "tangaza_kazi",
-  "taarifa_zaidi",
+  "vigezo_na_masharti",
   "job_detail",
   "job_apply",
 ]);

@@ -65,7 +65,7 @@ export async function processWhatsappMessage(
       return;
     }
     // Old message buttons after a cleared stage (tangaza close, tafuta
-    // apply-close alike): a Stage tap always enters the requested stage, even
+    // apply-close, terms close alike): a Stage tap always enters the requested stage, even
     // with no stored state. Plain text (no tap) still starts get-started below.
     if (job.interactiveId && isStageId(job.interactiveId)) {
       logger.info(

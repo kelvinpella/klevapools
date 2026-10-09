@@ -27,3 +27,7 @@ _Avoid_: gig, posting
 **Review**:
 Admin approval a Job needs before broadcast. Unreviewed Jobs stay invisible in every listing.
 _Avoid_: approve, verify, moderate
+
+**Terms Stage**:
+The `vigezo_na_masharti` Stage that renders the Naja terms and conditions Message with a back Option to `get_started`.
+_Avoid_: taarifa zaidi, more info

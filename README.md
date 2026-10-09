@@ -51,7 +51,7 @@ The endpoint verifies Zernio's HMAC signature against the raw request body and e
 
 Jobs retry up to five times with exponential backoff. Exhausted jobs are copied to the `naja-whatsapp-incoming-messages-dead-letter` queue, and stalled jobs are logged. `SIGINT` and `SIGTERM` close Fastify and gracefully drain the worker.
 
-When a phone has no saved stage, the worker sends a WhatsApp image-header reply-button menu with the options **Tafuta kazi**, **Tangaza kazi**, and **Taarifa zaidi**. The image URL and body are placeholders. Button responses are associated with the `get_started` stage and temporarily stored in Redis for seven days; this implementation does not write to Supabase or implement later stages yet.
+When a phone has no saved stage, the worker sends a WhatsApp image-header reply-button menu with the options **Tafuta kazi**, **Tangaza kazi**, and **Vigezo na Masharti**. The image URL and body are placeholders. Button responses are associated with the `get_started` stage and temporarily stored in Redis for seven days; this implementation does not write to Supabase or implement later stages yet.
 
 Zernio replies use `ZERNIO_API_KEY`. The webhook endpoint uses `ZERNIO_WEBHOOK_SECRET`, which must match the secret set in Zernio. `REDIS_URL` defaults to `redis://127.0.0.1:6379` if omitted.
 
