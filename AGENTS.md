@@ -49,3 +49,19 @@ Whenever you add or update dependencies:
 ---
 
 Following these practices keeps the agent-assisted workflow fast and dependable. When in doubt, restart the development server rather than running the production build.
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as GitHub issues in `kelvinpella/naja`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, with label strings equal to their names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
